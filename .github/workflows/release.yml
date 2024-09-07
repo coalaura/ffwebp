@@ -66,12 +66,9 @@ jobs:
         with:
           path: ./build
 
-      - name: Upload all built binaries to release
-        uses: actions/upload-release-asset@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./build/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/
-          asset_name: ffwebp_${{ github.ref_name }}
-          asset_content_type: application/octet-stream
