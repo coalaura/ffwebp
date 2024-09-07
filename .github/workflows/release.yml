@@ -28,12 +28,11 @@ jobs:
           mkdir -p build
           echo "package main" > version.go
           echo "const Version = \"${{ github.ref_name }}\"" >> version.go
-          go install mvdan.cc/garble@latest
 
       - name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; else EXT=""; fi
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} garble -tiny build -o build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}$EXT -ldflags -w
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -trimpath -o build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}$EXT
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v3
