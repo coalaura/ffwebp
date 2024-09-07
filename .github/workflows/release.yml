@@ -1,0 +1,75 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        goos: [windows, linux, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.1'
+
+      - name: Set up Environment
+        run: |
+          mkdir -p build
+          echo "package main" > version.go
+          echo "const Version = \"${{ github.ref_name }}\"" >> version.go
+          go install mvdan.cc/garble@latest
+
+      - name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; else EXT=""; fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} garble -tiny build -o build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}$EXT -ldflags -w
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: ./build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./build
+
+      - name: Upload all built binaries to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/
+          asset_name: ffwebp_${{ github.ref_name }}
+          asset_content_type: application/octet-stream
