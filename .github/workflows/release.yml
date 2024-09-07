@@ -55,13 +55,10 @@ jobs:
         with:
           path: ./build
 
-      - name: Display structure of downloaded files
-        run: ls -R
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: ./build/**
-          name: "Release ${{ github.ref_name }}"  # Specify the release name
+          name: "Release ${{ github.ref_name }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
