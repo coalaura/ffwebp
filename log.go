@@ -14,11 +14,13 @@ func info(fm string, args ...interface{}) {
 		return
 	}
 
-	fmt.Printf(fm+"\n", args...)
+	fmt.Printf(fm, args...)
+	fmt.Println()
 }
 
-func fatalf(code int, fm string, args ...interface{}) {
-	fmt.Printf("ERROR: "+fm+"\n", args...)
+func fatalf(fm string, args ...interface{}) {
+	fmt.Printf("ERROR: "+fm, args...)
+	fmt.Println()
 
-	os.Exit(code)
+	os.Exit(1)
 }

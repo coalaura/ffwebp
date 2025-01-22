@@ -7,11 +7,10 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/biessek/golang-ico"
+	ico "github.com/biessek/golang-ico"
 	"github.com/gen2brain/avif"
 	"github.com/gen2brain/heic"
 	"github.com/gen2brain/jpegxl"
@@ -22,35 +21,35 @@ import (
 
 var (
 	OutputFormats = []string{
-		"jpeg",
-		"png",
-		"webp",
-		"gif",
-		"bmp",
-		"tiff",
 		"avif",
-		"jxl",
+		"bmp",
+		"gif",
 		"ico",
+		"jpeg",
+		"jxl",
+		"png",
+		"tiff",
+		"webp",
 	}
 
 	InputFormats = []string{
-		"jpeg",
-		"png",
-		"webp",
-		"gif",
-		"bmp",
-		"tiff",
 		"avif",
-		"jxl",
-		"ico",
+		"bmp",
+		"gif",
 		"heic",
 		"heif",
+		"ico",
+		"jpeg",
+		"jxl",
+		"png",
+		"tiff",
+		"webp",
 	}
 )
 
 type Decoder func(io.Reader) (image.Image, error)
 
-func GetDecoderFromContent(in *os.File) (Decoder, error) {
+func GetDecoderFromContent(in io.ReadSeeker) (Decoder, error) {
 	buffer := make([]byte, 128)
 
 	_, err := in.Read(buffer)
@@ -139,31 +138,31 @@ func IsJpegXL(buffer []byte) bool {
 	return len(buffer) > 12 && string(buffer[:4]) == "JXL "
 }
 
-func OutputFormatFromPath(path string) string {
+func GetFormatFromPath(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 
 	switch ext {
 	case ".webp", ".riff":
 		return "webp"
-	case ".jpg", ".jpeg":
+	case ".jpg", ".jpeg", ".jpe", ".jif", ".jfif":
 		return "jpeg"
 	case ".png":
 		return "png"
-	case ".gif":
+	case ".gif", ".giff":
 		return "gif"
-	case ".bmp":
+	case ".bmp", ".dib", ".rle":
 		return "bmp"
 	case ".tiff", ".tif":
 		return "tiff"
 	case ".avif", ".avifs":
 		return "avif"
-	case ".jxl":
+	case ".jxl", ".jxls":
 		return "jxl"
 	case ".ico":
 		return "ico"
 	}
 
-	return "webp"
+	return ""
 }
 
 func IsValidOutputFormat(format string) bool {

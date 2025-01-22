@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"image/png"
 	"log"
-	"os/exec"
-	"path/filepath"
-	"strings"
+	"os"
 	"testing"
 )
 
@@ -28,40 +26,43 @@ var (
 )
 
 func TestFFWebP(t *testing.T) {
-	exe, err := filepath.Abs("bin/ffwebp.exe")
-	if err != nil {
-		log.Fatalf("Failed to get absolute path for ffwebp.exe: %v\n", err)
-	}
+	opts.Silent = true
 
 	for _, file := range TestFiles {
 		log.Printf("Testing file: %s\n", file)
 
-		cmd := exec.Command(exe, "-i", file, "-f", "png", "-s")
-
-		// Capture the output (which is expected to be a PNG image)
-		var stdout bytes.Buffer
-
-		cmd.Stdout = &stdout
-
-		// Run the command
-		err := cmd.Run()
+		in, err := os.OpenFile(file, os.O_RDONLY, 0)
 		if err != nil {
-			out := strings.TrimSpace(stdout.String())
-
-			log.Println(" - FAILED")
-			log.Fatalf("Test failed for file: %s (%s)\n", file, out)
+			log.Fatalf("Failed to read %s: %v", file, err)
 		}
 
-		// Decode the captured stdout output as a PNG image
-		img, err := png.Decode(&stdout)
+		defer in.Close()
+
+		img, err := ReadImage(in)
+		if err != nil {
+			log.Fatalf("Failed to decode %s: %v", file, err)
+		}
+
+		before := img.Bounds()
+
+		var result bytes.Buffer
+
+		err = WriteImage(&result, img, "png")
+		if err != nil {
+			log.Fatalf("Failed to encode png image: %v", err)
+		}
+
+		img, err = png.Decode(&result)
 		if err != nil {
 			log.Println(" - FAILED")
 			log.Fatalf("Failed to decode PNG image: %v\n", err)
 		}
 
-		if img == nil {
+		after := img.Bounds()
+
+		if before.Max.X != after.Max.X || before.Max.Y != after.Max.Y {
 			log.Println(" - FAILED")
-			log.Fatalf("No image data returned for file: %s\n", file)
+			log.Fatalf("Invalid image (%dx%d != %dx%d) for file: %s\n", before.Max.X, before.Max.Y, after.Max.X, after.Max.Y, file)
 		}
 
 		log.Println(" - PASSED")

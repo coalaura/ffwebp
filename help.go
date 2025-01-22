@@ -3,46 +3,63 @@ package main
 import (
 	"fmt"
 	"os"
-	"sort"
-	"strings"
+
+	"github.com/coalaura/arguments"
 )
 
 func help() {
-	if !arguments.GetBool("h", "help", false) {
+	if !opts.Help {
 		return
 	}
 
-	info("  __  __              _")
-	info(" / _|/ _|            | |")
-	info("| |_| |___      _____| |__  _ __")
-	info("|  _|  _\\ \\ /\\ / / _ \\ '_ \\| '_ \\")
-	info("| | | |  \\ V  V /  __/ |_) | |_) |")
-	info("|_| |_|   \\_/\\_/ \\___|_.__/| .__/")
-	info("                           | |")
-	info("                    %s |_|", Version)
+	println("  __  __              _")
+	println(" / _|/ _|            | |")
+	println("| |_| |___      _____| |__  _ __")
+	println("|  _|  _\\ \\ /\\ / / _ \\ '_ \\| '_ \\")
+	println("| | | |  \\ V  V /  __/ |_) | |_) |")
+	println("|_| |_|   \\_/\\_/ \\___|_.__/| .__/")
+	println("                           | |")
+	fmt.Printf("                    %s |_|\n", Version)
 
-	info("\nffwebp -i <input> [output] [options]")
+	println("\nffwebp [options] <input> [output]\n")
 
-	var max int
+	arguments.ShowHelp(true)
 
-	for name := range options {
-		if len(name) > max {
-			max = len(name)
-		}
-	}
+	b := arguments.NewBuilder(true)
 
-	var formatted []string
+	b.WriteRune('\n')
+	b.Mute()
+	b.WriteString(" - ")
+	b.Name()
+	b.WriteString("Input formats")
+	b.Mute()
+	b.WriteString(":  ")
+	values(b, InputFormats)
 
-	for name, help := range options {
-		formatted = append(formatted, fmt.Sprintf(" - %-*s: %s", max, name, help))
-	}
+	b.WriteRune('\n')
+	b.Mute()
+	b.WriteString(" - ")
+	b.Name()
+	b.WriteString("Output formats")
+	b.Mute()
+	b.WriteString(": ")
+	values(b, OutputFormats)
 
-	sort.Strings(formatted)
-
-	info(strings.Join(formatted, "\n"))
-
-	info("\nInput formats:  %s", strings.Join(InputFormats, ", "))
-	info("Output formats: %s", strings.Join(OutputFormats, ", "))
+	println(b.String())
 
 	os.Exit(0)
+}
+
+func values(b *arguments.Builder, v []string) {
+	for i, value := range v {
+		if i > 0 {
+			b.Mute()
+			b.WriteString(", ")
+		}
+
+		b.Value()
+		b.WriteString(value)
+	}
+
+	b.Reset()
 }

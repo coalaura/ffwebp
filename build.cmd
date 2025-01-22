@@ -1,10 +1,6 @@
 @echo off
 
-if not exist bin (
-    mkdir bin
-)
-
 echo Building...
-go build -o bin/ffwebp.exe
+go build -o %USERPROFILE%/.bin/ffwebp.exe
 
 echo Done
