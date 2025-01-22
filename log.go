@@ -3,24 +3,39 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/coalaura/arguments"
 )
 
 var (
 	silent bool
 )
 
-func info(fm string, args ...interface{}) {
+func debug(msg string) {
 	if silent {
 		return
 	}
 
-	fmt.Printf(fm, args...)
-	fmt.Println()
+	b := arguments.NewBuilder(true)
+
+	b.Mute()
+	b.WriteString("# ")
+	b.WriteString(msg)
+
+	println(b.String())
 }
 
-func fatalf(fm string, args ...interface{}) {
-	fmt.Printf("ERROR: "+fm, args...)
-	fmt.Println()
+func fatalf(format string, args ...interface{}) {
+	must(fmt.Errorf(format, args...))
+}
+
+func must(err error) {
+	if err == nil {
+		return
+	}
+
+	print("\033[38;5;160mERROR: \033[38;5;248m")
+	println(err.Error())
 
 	os.Exit(1)
 }

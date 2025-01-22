@@ -38,7 +38,7 @@ var opts = Options{
 	Output: "",
 
 	Silent:      false,
-	NumColors:   256,
+	NumColors:   0,
 	Effort:      10,
 	Format:      "",
 	Lossless:    false,
@@ -59,13 +59,11 @@ func parse() {
 
 	// Common image options
 	arguments.Register("quality", 'q', &opts.Quality).WithHelp("[avif|jpeg|jxl|webp] Quality level (1-100)")
+	arguments.Register("colors", 'c', &opts.NumColors).WithHelp("Number of colors to use when quantizing (0=no-quantizing, 256=max-colors)")
 
 	// AVIF
 	arguments.Register("ratio", 'r', &opts.Ratio).WithHelp("[avif] YCbCr subsample-ratio (0=444, 1=422, 2=420, 3=440, 4=411, 5=410)")
 	arguments.Register("speed", 'p', &opts.Speed).WithHelp("[avif] Encoder speed level (0=fast, 10=slower-better)")
-
-	// GIF
-	arguments.Register("colors", 'c', &opts.NumColors).WithHelp("[gif] Number of colors to use (1-256)")
 
 	// JXL
 	arguments.Register("effort", 'e', &opts.Effort).WithHelp("[jxl] Encoder effort level (0=fast, 10=slower-better)")
@@ -81,7 +79,7 @@ func parse() {
 	arguments.Register("lossless", 'l', &opts.Lossless).WithHelp("[webp] Use lossless compression")
 	arguments.Register("method", 'm', &opts.Method).WithHelp("[webp] Encoder method (0=fast, 6=slower-better)")
 
-	arguments.Parse()
+	must(arguments.Parse())
 
 	help()
 
@@ -116,9 +114,9 @@ func parse() {
 		opts.Format = "jpeg"
 	}
 
-	// NumColors must be between 1 and 256
-	if opts.NumColors < 1 || opts.NumColors > 256 {
-		opts.NumColors = 256
+	// NumColors must be between 0 and 256
+	if opts.NumColors < 0 || opts.NumColors > 256 {
+		opts.NumColors = 0
 	}
 
 	// Effort must be between 0 and 10
@@ -161,23 +159,10 @@ func GetWebPOptions() webp.Options {
 	}
 }
 
-func LogWebPOptions(options webp.Options) {
-	info("Using output options:")
-	info(" - lossless: %v", options.Lossless)
-	info(" - quality:  %v", options.Quality)
-	info(" - method:   %v", options.Method)
-	info(" - exact:    %v", options.Exact)
-}
-
 func GetJpegOptions() *jpeg.Options {
 	return &jpeg.Options{
 		Quality: opts.Quality,
 	}
-}
-
-func LogJpegOptions(options *jpeg.Options) {
-	info("Using output options:")
-	info(" - quality: %v", options.Quality)
 }
 
 func GetPNGOptions() *png.Encoder {
@@ -186,31 +171,16 @@ func GetPNGOptions() *png.Encoder {
 	}
 }
 
-func LogPNGOptions(encoder *png.Encoder) {
-	info("Using output options:")
-	info(" - level: %s", PNGCompressionLevelToString(encoder.CompressionLevel))
-}
-
 func GetGifOptions() *gif.Options {
 	return &gif.Options{
 		NumColors: opts.NumColors,
 	}
 }
 
-func LogGifOptions(options *gif.Options) {
-	info("Using output options:")
-	info(" - colors: %v", options.NumColors)
-}
-
 func GetTiffOptions() *tiff.Options {
 	return &tiff.Options{
 		Compression: GetTiffCompressionType(),
 	}
-}
-
-func LogTiffOptions(options *tiff.Options) {
-	info("Using output options:")
-	info(" - compression: %s", TiffCompressionTypeToString(options.Compression))
 }
 
 func GetAvifOptions() avif.Options {
@@ -222,25 +192,11 @@ func GetAvifOptions() avif.Options {
 	}
 }
 
-func LogAvifOptions(options avif.Options) {
-	info("Using output options:")
-	info(" - quality: %v", options.Quality)
-	info(" - quality-alpha: %v", options.QualityAlpha)
-	info(" - speed: %v", options.Speed)
-	info(" - chroma subsampling: %s", options.ChromaSubsampling.String())
-}
-
 func GetJxlOptions() jpegxl.Options {
 	return jpegxl.Options{
 		Quality: opts.Quality,
 		Effort:  opts.Effort,
 	}
-}
-
-func LogJxlOptions(options jpegxl.Options) {
-	info("Using output options:")
-	info(" - quality: %v", options.Quality)
-	info(" - effort: %v", options.Effort)
 }
 
 func GetTiffCompressionType() tiff.CompressionType {

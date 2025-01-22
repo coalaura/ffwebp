@@ -15,6 +15,8 @@ import (
 	"golang.org/x/image/tiff"
 )
 
+type Encoder func(io.Writer, image.Image) error
+
 func ReadImage(input io.ReadSeeker) (image.Image, error) {
 	decoder, err := GetDecoderFromContent(input)
 	if err != nil {
@@ -24,55 +26,77 @@ func ReadImage(input io.ReadSeeker) (image.Image, error) {
 	return decoder(input)
 }
 
-func WriteImage(output io.Writer, img image.Image, format string) error {
-	switch format {
+func ResolveImageEncoder() (Encoder, error) {
+	table := NewOptionsTable()
+
+	switch opts.Format {
 	case "webp":
 		options := GetWebPOptions()
 
-		LogWebPOptions(options)
+		table.AddWebPOptions(options)
 
-		return webp.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return webp.Encode(output, img, options)
+		}, nil
 	case "jpeg":
 		options := GetJpegOptions()
 
-		LogJpegOptions(options)
+		table.AddJpegOptions(options)
 
-		return jpeg.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return jpeg.Encode(output, img, options)
+		}, nil
 	case "png":
 		encoder := GetPNGOptions()
 
-		LogPNGOptions(encoder)
+		table.AddPNGOptions(encoder)
 
-		return encoder.Encode(output, img)
+		return func(output io.Writer, img image.Image) error {
+			return encoder.Encode(output, img)
+		}, nil
 	case "gif":
 		options := GetGifOptions()
 
-		LogGifOptions(options)
+		table.AddGifOptions(options)
 
-		return gif.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return gif.Encode(output, img, options)
+		}, nil
 	case "bmp":
-		return bmp.Encode(output, img)
+		return func(output io.Writer, img image.Image) error {
+			return bmp.Encode(output, img)
+		}, nil
 	case "tiff":
 		options := GetTiffOptions()
 
-		LogTiffOptions(options)
+		table.AddTiffOptions(options)
 
-		return tiff.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return tiff.Encode(output, img, options)
+		}, nil
 	case "avif":
 		options := GetAvifOptions()
 
-		LogAvifOptions(options)
+		table.AddAvifOptions(options)
 
-		return avif.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return avif.Encode(output, img, options)
+		}, nil
 	case "jxl":
 		options := GetJxlOptions()
 
-		LogJxlOptions(options)
+		table.AddJxlOptions(options)
 
-		jpegxl.Encode(output, img, options)
+		return func(output io.Writer, img image.Image) error {
+			return jpegxl.Encode(output, img, options)
+		}, nil
 	case "ico":
-		return ico.Encode(output, img)
+		table.Print()
+
+		return func(output io.Writer, img image.Image) error {
+			return ico.Encode(output, img)
+		}, nil
 	}
 
-	return fmt.Errorf("unsupported output format: %s", format)
+	return nil, fmt.Errorf("unsupported output format: %s", opts.Format)
 }

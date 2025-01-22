@@ -5,6 +5,7 @@ go 1.23.4
 require (
 	github.com/biessek/golang-ico v0.0.0-20180326222316-d348d9ea4670
 	github.com/coalaura/arguments v1.5.2
+	github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4
 	github.com/gen2brain/avif v0.3.2
 	github.com/gen2brain/heic v0.3.1
 	github.com/gen2brain/jpegxl v0.3.1

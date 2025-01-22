@@ -27,6 +27,9 @@ var (
 
 func TestFFWebP(t *testing.T) {
 	opts.Silent = true
+	opts.Format = "png"
+
+	encoder, _ := ResolveImageEncoder()
 
 	for _, file := range TestFiles {
 		log.Printf("Testing file: %s\n", file)
@@ -47,7 +50,7 @@ func TestFFWebP(t *testing.T) {
 
 		var result bytes.Buffer
 
-		err = WriteImage(&result, img, "png")
+		err = encoder(&result, img)
 		if err != nil {
 			log.Fatalf("Failed to encode png image: %v", err)
 		}

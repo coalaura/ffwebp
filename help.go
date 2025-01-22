@@ -1,27 +1,29 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/coalaura/arguments"
 )
+
+func header() {
+	println("  __  __              _")
+	println(" / _|/ _|_      _____| |__  _ __")
+	println("| |_| |_\\ \\ /\\ / / _ \\ '_ \\| '_ \\")
+	println("|  _|  _|\\ V  V /  __/ |_) | |_) |")
+	println("|_| |_|   \\_/\\_/ \\___|_.__/| .__/")
+	print("                           |_| ")
+	println(Version)
+
+	println()
+}
 
 func help() {
 	if !opts.Help {
 		return
 	}
 
-	println("  __  __              _")
-	println(" / _|/ _|            | |")
-	println("| |_| |___      _____| |__  _ __")
-	println("|  _|  _\\ \\ /\\ / / _ \\ '_ \\| '_ \\")
-	println("| | | |  \\ V  V /  __/ |_) | |_) |")
-	println("|_| |_|   \\_/\\_/ \\___|_.__/| .__/")
-	println("                           | |")
-	fmt.Printf("                    %s |_|\n", Version)
-
-	println("\nffwebp [options] <input> [output]\n")
+	println("ffwebp [options] <input> [output]\n")
 
 	arguments.ShowHelp(true)
 

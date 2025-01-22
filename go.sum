@@ -1,13 +1,11 @@
 github.com/biessek/golang-ico v0.0.0-20180326222316-d348d9ea4670 h1:FQPKKjDhzG0T4ew6dm6MGrXb4PRAi8ZmTuYuxcF62BM=
 github.com/biessek/golang-ico v0.0.0-20180326222316-d348d9ea4670/go.mod h1:iRWAFbKXMMkVQyxZ1PfGlkBr1TjATx1zy2MRprV7A3Q=
-github.com/coalaura/arguments v1.5.0 h1:apdZXxINepy8qCHYKJYEnLHvV6VbYgsIMPbZCWZAPQY=
-github.com/coalaura/arguments v1.5.0/go.mod h1:F5cdI+Gn1qi5K6qqvAdxdTD2TXkny+gTKU0o6NN1MlU=
-github.com/coalaura/arguments v1.5.1 h1:Gc7uODI3WlcVxmQpxoUQF7Y2j3EMDpSlVqhmGMtLC8Q=
-github.com/coalaura/arguments v1.5.1/go.mod h1:F5cdI+Gn1qi5K6qqvAdxdTD2TXkny+gTKU0o6NN1MlU=
 github.com/coalaura/arguments v1.5.2 h1:hRLKo6XmAzCDOS/unCUVAIYl3WU/i6QX59nBh0T31cw=
 github.com/coalaura/arguments v1.5.2/go.mod h1:F5cdI+Gn1qi5K6qqvAdxdTD2TXkny+gTKU0o6NN1MlU=
 github.com/ebitengine/purego v0.7.1 h1:6/55d26lG3o9VCZX8lping+bZcmShseiqlh2bnUDiPA=
 github.com/ebitengine/purego v0.7.1/go.mod h1:ah1In8AOtksoNK6yk5z1HTJeUkC1Ez4Wk2idgGslMwQ=
+github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4 h1:BBade+JlV/f7JstZ4pitd4tHhpN+w+6I+LyOS7B4fyU=
+github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4/go.mod h1:H7chHJglrhPPzetLdzBleF8d22WYOv7UM/lEKYiwlKM=
 github.com/gen2brain/avif v0.3.2 h1:XUR0CBl5n4ISFJE8/pc1RMEKt5KUVoW8InctN+M7+DQ=
 github.com/gen2brain/avif v0.3.2/go.mod h1:tdL2sV6oOJXBZZvT5iP55VEM1X2c3/yJmYKMJTl8fXg=
 github.com/gen2brain/heic v0.3.1 h1:ClY5YTdXdIanw7pe9ZVUM9XcsqH6CCCa5CZBlm58qOs=
