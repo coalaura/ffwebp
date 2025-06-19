@@ -53,13 +53,16 @@ func main() {
 	})
 
 	app := &cli.Command{
-		Name:      "ffwebp",
-		Usage:     "Convert any image format into any other image format",
-		Version:   Version,
-		Flags:     flags,
-		Action:    run,
-		Writer:    os.Stderr,
-		ErrWriter: os.Stderr,
+		Name:                   "ffwebp",
+		Usage:                  "Convert any image format into any other image format",
+		Version:                Version,
+		Flags:                  flags,
+		Action:                 run,
+		Writer:                 os.Stderr,
+		ErrWriter:              os.Stderr,
+		EnableShellCompletion:  true,
+		UseShortOptionHandling: true,
+		Suggest:                true,
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
