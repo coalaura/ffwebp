@@ -28,6 +28,20 @@ jobs:
       with:
         go-version: '1.23.1'
 
+    - name: Generate Windows resources
+      if: matrix.goos == 'windows'
+      run: |
+        go install github.com/tc-hib/go-winres@latest
+        go-winres simply \
+          --manifest cli \
+          --product-name FFWebP \
+          --original-filename ffwebp.exe \
+          --icon logo.ico \
+          --copyright "(c) 2025 coalaura" \
+          --file-description "Convert any image format into any other image format" \
+          --file-version "${{ github.ref_name }}" \
+          --arch "${{ matrix.goarch }}"
+
     - name: Build ${{ matrix.goos }}_${{ matrix.goarch }} (${{
         matrix.flavour }})
       shell: bash
