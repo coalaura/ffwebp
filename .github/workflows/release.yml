@@ -43,7 +43,6 @@ jobs:
         go build \
           -trimpath \
           -buildvcs=false \
-          -buildid= \
           -ldflags "-s -w -X 'main.Version=${{ github.ref_name }}'" \
           -tags "${{ matrix.flavour }}" \
           -o "$OUT"
