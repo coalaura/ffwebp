@@ -75,7 +75,6 @@ func main() {
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
 		logx.Errorf("fatal: %v", err)
-		os.Exit(1)
 	}
 }
 
