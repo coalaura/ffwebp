@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"io"
-	"log"
 	"os"
+	"path/filepath"
+	"time"
 
+	_ "github.com/coalaura/ffwebp/internal/builtins"
 	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/urfave/cli/v3"
 )
@@ -14,8 +17,6 @@ import (
 var Version = "dev"
 
 func main() {
-	log.SetOutput(os.Stderr)
-
 	flags := codec.Flags([]cli.Flag{
 		&cli.StringFlag{
 			Name:    "input",
@@ -45,10 +46,17 @@ func main() {
 			Aliases: []string{"l"},
 			Usage:   "force lossless mode (overrides --quality)",
 		},
-		&cli.StringFlag{
-			Name:    "resize",
-			Aliases: []string{"r"},
-			Usage:   "WxH, Wx or xH (keep aspect)",
+		&cli.BoolFlag{
+			Name:    "silent",
+			Aliases: []string{"s"},
+			Usage:   "hides all output",
+			Action: func(_ context.Context, _ *cli.Command, silent bool) error {
+				if silent {
+					logx.SetSilent()
+				}
+
+				return nil
+			},
 		},
 	})
 
@@ -66,22 +74,27 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		logx.Errorf("fatal: %v", err)
+		os.Exit(1)
 	}
 }
 
 func run(_ context.Context, cmd *cli.Command) error {
+	banner()
+
 	var (
 		input  string
 		output string
 
 		common opts.Common
 
-		reader io.Reader = os.Stdin
-		writer io.Writer = os.Stdout
+		reader io.Reader    = os.Stdin
+		writer *countWriter = &countWriter{w: os.Stdout}
 	)
 
 	if input = cmd.String("input"); input != "-" {
+		logx.Printf("opening input file %q\n", filepath.ToSlash(input))
+
 		file, err := os.OpenFile(input, os.O_RDONLY, 0)
 		if err != nil {
 			return err
@@ -90,9 +103,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		defer file.Close()
 
 		reader = file
+	} else {
+		logx.Printf("reading input from <stdin>\n")
 	}
 
 	if output = cmd.String("output"); output != "-" {
+		logx.Printf("opening output file %q\n", filepath.ToSlash(output))
+
 		file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			return err
@@ -100,31 +117,47 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 		defer file.Close()
 
-		writer = file
+		writer = &countWriter{w: file}
+	} else {
+		logx.Printf("writing output to <stdout>\n")
 	}
 
 	common.Quality = cmd.Int("quality")
 	common.Lossless = cmd.Bool("lossless")
+
+	common.FillDefaults()
+
+	sniffed, reader, err := codec.Sniff(reader)
+	if err != nil {
+		return err
+	}
+
+	logx.Printf("sniffed codec: %s (%q)\n", sniffed.Codec, sniffed)
 
 	oCodec, err := codec.Detect(output, cmd.String("codec"))
 	if err != nil {
 		return err
 	}
 
-	iCodec, reader, err := codec.Sniff(reader)
+	logx.Printf("output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
+
+	t0 := time.Now()
+
+	img, err := sniffed.Codec.Decode(reader)
 	if err != nil {
 		return err
 	}
 
-	img, err := iCodec.Decode(reader)
+	logx.Printf("decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))
+
+	t1 := time.Now()
+
+	err = oCodec.Encode(writer, img, common)
 	if err != nil {
 		return err
 	}
 
-	resized, err := resize(img, cmd)
-	if err != nil {
-		return err
-	}
+	logx.Printf("encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t1).Truncate(time.Millisecond))
 
-	return oCodec.Encode(writer, resized, common)
+	return nil
 }

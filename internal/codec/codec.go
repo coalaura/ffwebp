@@ -9,12 +9,12 @@ import (
 )
 
 type Codec interface {
-	Name() string
+	String() string
 
 	Flags([]cli.Flag) []cli.Flag
 	Extensions() []string
 
-	Sniff(io.ReaderAt) (int, error)
+	Sniff(io.ReaderAt) (int, []byte, error)
 	Decode(io.Reader) (image.Image, error)
 	Encode(io.Writer, image.Image, opts.Common) error
 }
@@ -22,7 +22,7 @@ type Codec interface {
 var codecs = map[string]Codec{}
 
 func Register(c Codec) {
-	codecs[c.Name()] = c
+	codecs[c.String()] = c
 }
 
 func Flags(flags []cli.Flag) []cli.Flag {

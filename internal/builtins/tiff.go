@@ -1,7 +1,7 @@
-//go:build tiff
-// +build tiff
+//go:build tiff || full
+// +build tiff full
 
-package main
+package builtins
 
 import (
 	_ "github.com/coalaura/ffwebp/internal/codec/tiff"

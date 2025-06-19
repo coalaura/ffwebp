@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/urfave/cli/v3"
 )
@@ -20,7 +21,7 @@ func init() {
 
 type impl struct{}
 
-func (impl) Name() string {
+func (impl) String() string {
 	return "gif"
 }
 
@@ -44,21 +45,25 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	})
 }
 
-func (impl) Sniff(reader io.ReaderAt) (int, error) {
+func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	magic7a := []byte("GIF87a")
 	magic9a := []byte("GIF89a")
 
 	buf := make([]byte, 6)
 
 	if _, err := reader.ReadAt(buf, 0); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
-	if bytes.Equal(buf, magic7a) || bytes.Equal(buf, magic9a) {
-		return 100, nil
+	if bytes.Equal(buf, magic7a) {
+		return 100, magic7a, nil
 	}
 
-	return 0, nil
+	if bytes.Equal(buf, magic9a) {
+		return 100, magic9a, nil
+	}
+
+	return 0, nil, nil
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
@@ -66,6 +71,8 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
+	logx.Printf("gif: colors=%d\n", numColors)
+
 	return gif.Encode(writer, img, &gif.Options{
 		NumColors: numColors,
 	})

@@ -18,7 +18,7 @@ func init() {
 
 type impl struct{}
 
-func (impl) Name() string {
+func (impl) String() string {
 	return "bmp"
 }
 
@@ -30,20 +30,20 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return flags
 }
 
-func (impl) Sniff(reader io.ReaderAt) (int, error) {
+func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	magic := []byte{0x42, 0x4D}
 
 	buf := make([]byte, 2)
 
 	if _, err := reader.ReadAt(buf, 0); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	if bytes.Equal(buf, magic) {
-		return 100, nil
+		return 100, magic, nil
 	}
 
-	return 0, nil
+	return 0, nil, nil
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {

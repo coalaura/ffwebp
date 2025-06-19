@@ -9,7 +9,27 @@ import (
 	"strings"
 )
 
-func Sniff(reader io.Reader) (Codec, io.Reader, error) {
+type Sniffed struct {
+	Header     []byte
+	Confidence int
+	Codec      Codec
+}
+
+func (s *Sniffed) String() string {
+	var builder strings.Builder
+
+	for _, b := range s.Header {
+		if b >= 32 && b <= 126 {
+			builder.WriteByte(b)
+		} else {
+			builder.WriteRune('.')
+		}
+	}
+
+	return builder.String()
+}
+
+func Sniff(reader io.Reader) (*Sniffed, io.Reader, error) {
 	buf, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, err
@@ -18,18 +38,20 @@ func Sniff(reader io.Reader) (Codec, io.Reader, error) {
 	ra := bytes.NewReader(buf)
 
 	var (
-		guess Codec
 		best  int
+		magic []byte
+		guess Codec
 	)
 
 	for _, codec := range codecs {
-		confidence, err := codec.Sniff(ra)
+		confidence, header, err := codec.Sniff(ra)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		if confidence > best {
 			best = confidence
+			magic = header
 			guess = codec
 		}
 	}
@@ -38,7 +60,11 @@ func Sniff(reader io.Reader) (Codec, io.Reader, error) {
 		return nil, nil, errors.New("unknown format")
 	}
 
-	return guess, bytes.NewReader(buf), nil
+	return &Sniffed{
+		Header:     magic,
+		Confidence: best,
+		Codec:      guess,
+	}, bytes.NewReader(buf), nil
 }
 
 func Detect(output, override string) (Codec, error) {
