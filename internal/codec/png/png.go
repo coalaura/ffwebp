@@ -33,11 +33,11 @@ func (impl) Extensions() []string {
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags, &cli.IntFlag{
 		Name:        "png.compression",
-		Usage:       "PNG: compression level (0=default, 1=none, 2=speed, 3=best)",
-		Value:       0,
+		Usage:       "PNG: compression level (0=none, 1=default, 2=speed, 3=best)",
+		Value:       1,
 		Destination: &compression,
 		Validator: func(value int) error {
-			if value < 0 || value > 4 {
+			if value < 0 || value > 3 {
 				return fmt.Errorf("invalid compression level: %q", value)
 			}
 
@@ -76,8 +76,10 @@ func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
 
 func compressionLevel(level int) png.CompressionLevel {
 	switch level {
-	case 1:
+	case 0:
 		return png.NoCompression
+	case 1:
+		return png.DefaultCompression
 	case 2:
 		return png.BestSpeed
 	case 3:
