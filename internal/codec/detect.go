@@ -46,6 +46,10 @@ func Sniff(reader io.Reader) (*Sniffed, io.Reader, error) {
 	for _, codec := range codecs {
 		confidence, header, err := codec.Sniff(ra)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				continue
+			}
+
 			return nil, nil, err
 		}
 
