@@ -29,13 +29,11 @@ jobs:
       - name: Set up Environment
         run: |
           mkdir -p build
-          echo "package main" > version.go
-          echo "const Version = \"${{ github.ref_name }}\"" >> version.go
 
       - name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; else EXT=""; fi
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -trimpath -o build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}$EXT
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-s -w -X 'main.Version=${{ github.ref_name }}'" -trimpath -o build/ffwebp_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}$EXT
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
