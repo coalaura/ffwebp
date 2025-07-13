@@ -11,6 +11,7 @@ import (
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/nfnt/resize"
 	"github.com/urfave/cli/v3"
 )
 
@@ -45,6 +46,11 @@ func main() {
 			Name:    "lossless",
 			Aliases: []string{"l"},
 			Usage:   "force lossless mode (overrides --quality)",
+		},
+		&cli.UintFlag{
+			Name:    "thumbnail",
+			Aliases: []string{"t"},
+			Usage:   "create a thumbnail no wider/taller than the specified size",
 		},
 		&cli.BoolFlag{
 			Name:    "silent",
@@ -148,6 +154,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	logx.Printf("decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))
+
+	if thumbnail := cmd.Uint("thumbnail"); thumbnail > 0 {
+		t2 := time.Now()
+
+		img = resize.Thumbnail(thumbnail, thumbnail, img, resize.Lanczos3)
+
+		logx.Printf("resized image: %dx%d in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), time.Since(t2).Truncate(time.Millisecond))
+	}
 
 	t1 := time.Now()
 
