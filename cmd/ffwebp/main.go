@@ -80,7 +80,7 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		logx.Errorf("fatal: %v", err)
+		logx.Errorf("fatal: %v\n", err)
 	}
 }
 
@@ -112,6 +112,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 		logx.Printf("reading input from <stdin>\n")
 	}
 
+	sniffed, reader, err := codec.Sniff(reader)
+	if err != nil {
+		return err
+	}
+
+	logx.Printf("sniffed codec: %s (%q)\n", sniffed.Codec, sniffed)
+
 	if output = cmd.String("output"); output != "-" {
 		logx.Printf("opening output file %q\n", filepath.ToSlash(output))
 
@@ -131,13 +138,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	common.Lossless = cmd.Bool("lossless")
 
 	common.FillDefaults()
-
-	sniffed, reader, err := codec.Sniff(reader)
-	if err != nil {
-		return err
-	}
-
-	logx.Printf("sniffed codec: %s (%q)\n", sniffed.Codec, sniffed)
 
 	oCodec, err := codec.Detect(output, cmd.String("codec"))
 	if err != nil {

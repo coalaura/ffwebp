@@ -61,7 +61,7 @@ func Sniff(reader io.Reader) (*Sniffed, io.Reader, error) {
 	}
 
 	if guess == nil {
-		return nil, nil, errors.New("unknown format")
+		return nil, nil, errors.New("unknown input format")
 	}
 
 	return &Sniffed{
