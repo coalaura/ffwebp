@@ -5,7 +5,7 @@ FFWebP is a command line utility for converting images between multiple formats.
 ## Features
 
 - Pure Go implementation with no external runtime dependencies
-- Supports AVIF, BMP, GIF, ICO, JPEG, JPEGXL, PNG, PNM (PBM/PGM/PPM/PAM), PSD (no encoding), TGA, TIFF and WebP
+- Supports AVIF, BMP, GIF, ICO, JPEG, JPEGXL, PNG, PNM (PBM/PGM/PPM/PAM), PSD (no encoding), TGA, TIFF, WEBP and XBM
 - Lossy or lossless output with configurable quality
 - Output codec selected from the output file extension when `--codec` is omitted
 - Full set of format-specific flags for every supported format (see `ffwebp --help`)
