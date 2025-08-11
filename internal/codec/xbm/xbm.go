@@ -5,12 +5,12 @@ import (
 	"image"
 	"io"
 
+	decode "github.com/knieriem/g/image/xbm"
+	"github.com/xyproto/xbm"
+
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/urfave/cli/v3"
-
-	decode "github.com/knieriem/g/image/xbm"
-	"github.com/xyproto/xbm"
 )
 
 func init() {
