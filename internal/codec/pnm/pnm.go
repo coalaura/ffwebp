@@ -83,9 +83,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(r io.Reader) (image.Image, error) {
-	return netpbm.Decode(r, &netpbm.DecodeOptions{
-		Exact: true,
-	})
+	return netpbm.Decode(r, nil)
 }
 
 func (impl) Encode(w io.Writer, img image.Image, common opts.Common) error {
