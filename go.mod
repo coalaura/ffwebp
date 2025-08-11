@@ -5,6 +5,7 @@ go 1.24.5
 require github.com/urfave/cli/v3 v3.3.8
 
 require (
+	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.4.4
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gen2brain/webp v0.5.5

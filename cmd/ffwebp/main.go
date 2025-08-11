@@ -112,7 +112,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		logx.Printf("reading input from <stdin>\n")
 	}
 
-	sniffed, reader, err := codec.Sniff(reader)
+	sniffed, reader, err := codec.Sniff(reader, input)
 	if err != nil {
 		return err
 	}

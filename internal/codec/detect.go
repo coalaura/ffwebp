@@ -29,7 +29,19 @@ func (s *Sniffed) String() string {
 	return builder.String()
 }
 
-func Sniff(reader io.Reader) (*Sniffed, io.Reader, error) {
+func Sniff(reader io.Reader, input string) (*Sniffed, io.Reader, error) {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(input), "."))
+	if ext != "" {
+		codec, _ := FindCodec(ext)
+		if codec != nil {
+			return &Sniffed{
+				Header:     []byte("." + ext),
+				Confidence: 100,
+				Codec:      codec,
+			}, reader, nil
+		}
+	}
+
 	buf, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, err
