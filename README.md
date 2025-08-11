@@ -1,33 +1,97 @@
 # FFWebP
 
-FFWebP is a command line utility for converting images between multiple formats. It automatically detects the input format and encodes the output using
+FFWebP is a small, single-binary CLI for converting images between formats, think "ffmpeg for images". It auto-detects the input format, lets you pick the output format by file extension or `--codec`, supports stdin/stdout, thumbnails, and rich per-codec options.
 
 ## Features
 
-- Pure Go implementation with no external runtime dependencies
-- Supports AVIF, BMP, GIF, ICO, JPEG, JPEGXL, PNG, PNM (PBM/PGM/PPM/PAM), PSD (no encoding), QOI, TGA, TIFF, WEBP and XBM
+- Single binary: no external tools required
+- Auto-detects input codec and infers output from the file extension
+- Supports AVIF, BMP, GIF, ICO, JPEG, JPEG XL, PNG, PNM (PBM/PGM/PPM/PAM), PSD (decode-only), QOI, TGA, TIFF, WebP, and XBM
 - Lossy or lossless output with configurable quality
-- Output codec selected from the output file extension when `--codec` is omitted
-- Full set of format-specific flags for every supported format (see `ffwebp --help`)
-- Additional formats may be added in the future
+- Thumbnail generation via Lanczos3 resampling
+- Per-codec flags for fine-grained control (see `ffwebp --help`)
 
-## Building
+## Installation
 
-Compile with all codecs enabled using the `full` build tag:
+### Prebuilt binaries (recommended)
+
+- Download the appropriate binary for your OS/arch from the [releases](https://github.com/coalaura/ffwebp/releases).
+- Choose a variant:
+  - core: includes the most popular codecs for everyday use
+  - full: contains all available codecs
+- Make the binary executable and place it on your `PATH`.
 
 ```bash
-go build -tags full -o ffwebp ./cmd/ffwebp
+chmod +x ffwebp && sudo mv ffwebp /usr/local/bin/
 ```
 
-You can enable a subset of codecs by selecting the appropriate build tags (for example `-tags "jpeg,png"`).
+### Build from source (optional)
+
+```bash
+# All codecs
+go build -tags full -o ffwebp ./cmd/ffwebp
+
+# Core set (common formats)
+go build -tags core -o ffwebp ./cmd/ffwebp
+
+# Custom subset
+go build -tags "jpeg,png,webp" -o ffwebp ./cmd/ffwebp
+```
+
+Notes
+- The banner at startup prints the compiled-in codecs (from build tags).
+- You can enable individual codecs with tags matching their names (e.g., `-tags avif,jpegxl,tiff`).
 
 ## Usage
 
+Basic conversion
 ```bash
 ffwebp -i input.jpg -o output.webp
 ```
 
-Run `ffwebp --help` to see the full list of flags.
+Pipe stdin/stdout
+```bash
+cat input.png | ffwebp -o out.jpg
+# or
+ffwebp < input.png > out.jpg
+```
+
+Force output codec (if the output name has no or different extension)
+```bash
+ffwebp -i in.png -o out.any -c jpeg
+```
+
+Quality and lossless
+```bash
+# Lossy quality (0–100, defaults to 85)
+ffwebp -i in.png -o out.webp -q 82
+
+# Force lossless (overrides quality)
+ffwebp -i in.png -o out.webp --lossless
+```
+
+Thumbnails
+```bash
+# Create a thumbnail no larger than 256x256
+ffwebp -i big.jpg -o thumb.webp -t 256
+```
+
+Silence logs
+```bash
+ffwebp -i in.jpg -o out.png -s
+```
+
+## Codec Options
+
+Each codec exposes its available options via namespaced flags (for example, `--webp.method`, `--tiff.predictor`, `--psd.skip-merged`). Run `ffwebp --help` to see all global and codec-specific flags for your build.
+
+If `--codec` is omitted, the output codec is chosen from the output file extension. If the output filename has no extension, pass `--codec`.
+
+## How It Works
+
+- Input sniffing: the input codec is detected by reading magic bytes; if you provide an input filename, its extension is considered.
+- Output selection: the output codec is inferred from the destination extension or forced via `--codec`.
+- Timing and sizes: ffwebp prints info like decode/encode timings and output size unless `--silent` is set.
 
 ## License
 
