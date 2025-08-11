@@ -5,6 +5,7 @@ go 1.24.5
 require github.com/urfave/cli/v3 v3.3.8
 
 require (
+	github.com/anthonynsimon/bild v0.14.0
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.4.4
 	github.com/gen2brain/jpegxl v0.4.5
@@ -16,7 +17,7 @@ require (
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0
 	github.com/spakin/netpbm v1.3.2
 	github.com/xyproto/xbm v1.0.0
-	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8
+	golang.org/x/image v0.18.0
 )
 
 require (

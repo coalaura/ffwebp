@@ -42,7 +42,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{
 			Name:        "avif.quality-alpha",
-			Usage:       "AVIF: alpha channel quality in range [0-100]",
+			Usage:       "AVIF: alpha channel quality (0-100)",
 			Value:       60,
 			Destination: &qualityA,
 			Validator: func(v int) error {
@@ -55,7 +55,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:        "avif.speed",
-			Usage:       "AVIF: encoding speed in range [0-10] (0=slowest/best)",
+			Usage:       "AVIF: encoding speed (0=slowest/best, 10=fastest/worst)",
 			Value:       6,
 			Destination: &speed,
 			Validator: func(v int) error {

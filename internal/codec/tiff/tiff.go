@@ -46,7 +46,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 			Destination: &compression,
 			Validator: func(value int) error {
 				if value < 0 || value > 4 {
-					return fmt.Errorf("invalid compression: %d", value)
+					return fmt.Errorf("invalid tiff.compression: %d", value)
 				}
 
 				return nil

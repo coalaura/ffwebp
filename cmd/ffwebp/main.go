@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/coalaura/ffwebp/internal/builtins"
 	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/effects"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/nfnt/resize"
@@ -18,7 +19,7 @@ import (
 var Version = "dev"
 
 func main() {
-	flags := codec.Flags([]cli.Flag{
+	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:    "input",
 			Aliases: []string{"i"},
@@ -64,7 +65,10 @@ func main() {
 				return nil
 			},
 		},
-	})
+	}
+
+	flags = codec.Flags(flags)
+	flags = effects.Flags(flags)
 
 	app := &cli.Command{
 		Name:                   "ffwebp",
@@ -88,6 +92,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	banner()
 
 	var (
+		n      int
 		input  string
 		output string
 
@@ -167,12 +172,21 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	t1 := time.Now()
 
+	img, n, err = effects.ApplyAll(img)
+	if err != nil {
+		return err
+	} else if n > 0 {
+		logx.Printf("applied %d effect(s) in %s\n", n, time.Since(t1).Truncate(time.Millisecond))
+	}
+
+	t2 := time.Now()
+
 	err = oCodec.Encode(writer, img, common)
 	if err != nil {
 		return err
 	}
 
-	logx.Printf("encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t1).Truncate(time.Millisecond))
+	logx.Printf("encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
 
 	return nil
 }

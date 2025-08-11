@@ -41,7 +41,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 		Destination: &numColors,
 		Validator: func(value int) error {
 			if value < 1 || value > 256 {
-				return fmt.Errorf("invalid number of colors: %d", value)
+				return fmt.Errorf("invalid gif.colors: %d", value)
 			}
 
 			return nil

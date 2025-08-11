@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/effects"
 	"github.com/coalaura/ffwebp/internal/logx"
 )
 
@@ -19,6 +20,10 @@ func banner() {
 	}
 
 	sort.Strings(names)
+
+	if effects.HasEffects() {
+		names = append(names, "effects")
+	}
 
 	build := strings.Join(names, ",")
 
