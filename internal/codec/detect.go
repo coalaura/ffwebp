@@ -78,6 +78,10 @@ func Detect(output, override string) (Codec, error) {
 			return nil, fmt.Errorf("unsupported output codec: %q", override)
 		}
 
+		if !codec.CanEncode() {
+			return nil, fmt.Errorf("decode-only output codec: %q", override)
+		}
+
 		return codec, nil
 	}
 
@@ -93,6 +97,10 @@ func Detect(output, override string) (Codec, error) {
 	for _, codec := range codecs {
 		for _, alias := range codec.Extensions() {
 			if ext == strings.ToLower(alias) {
+				if !codec.CanEncode() {
+					return nil, fmt.Errorf("decode-only output codec: %q", override)
+				}
+
 				return codec, nil
 			}
 		}

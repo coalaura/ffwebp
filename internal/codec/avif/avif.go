@@ -15,7 +15,6 @@ import (
 )
 
 var (
-	quality  int
 	qualityA int
 	speed    int
 	chroma   int
@@ -33,6 +32,10 @@ func (impl) String() string {
 
 func (impl) Extensions() []string {
 	return []string{"avif"}
+}
+
+func (impl) CanEncode() bool {
+	return true
 }
 
 func (impl) Flags(flags []cli.Flag) []cli.Flag {

@@ -14,6 +14,8 @@ type Codec interface {
 	Flags([]cli.Flag) []cli.Flag
 	Extensions() []string
 
+	CanEncode() bool
+
 	Sniff(io.ReaderAt) (int, []byte, error)
 	Decode(io.Reader) (image.Image, error)
 	Encode(io.Writer, image.Image, opts.Common) error

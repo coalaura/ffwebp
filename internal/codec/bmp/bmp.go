@@ -26,6 +26,10 @@ func (impl) Extensions() []string {
 	return []string{"bmp"}
 }
 
+func (impl) CanEncode() bool {
+	return true
+}
+
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return flags
 }

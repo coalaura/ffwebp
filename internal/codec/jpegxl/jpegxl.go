@@ -32,6 +32,10 @@ func (impl) Extensions() []string {
 	return []string{"jxl"}
 }
 
+func (impl) CanEncode() bool {
+	return true
+}
+
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{

@@ -30,6 +30,10 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return flags
 }
 
+func (impl) CanEncode() bool {
+	return true
+}
+
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	magicICO := []byte{0x00, 0x00, 0x01, 0x00}
 	magicCUR := []byte{0x00, 0x00, 0x02, 0x00}

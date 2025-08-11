@@ -33,6 +33,10 @@ func (impl) Extensions() []string {
 	return []string{"webp"}
 }
 
+func (impl) CanEncode() bool {
+	return true
+}
+
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{

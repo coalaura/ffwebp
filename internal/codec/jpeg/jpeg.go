@@ -30,6 +30,10 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return flags
 }
 
+func (impl) CanEncode() bool {
+	return true
+}
+
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	magic := []byte{0xFF, 0xD8, 0xFF}
 
