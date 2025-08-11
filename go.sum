@@ -14,6 +14,8 @@ github.com/gopherjs/gopherjs v1.17.2 h1:fQnZVsXk8uxXIStYb0N4bGk7jeyTalG/wsZjQ25d
 github.com/gopherjs/gopherjs v1.17.2/go.mod h1:pRRIvn/QzFLrKfvEz3qUuEhtE/zLCWfreZ6J5gM2i+k=
 github.com/knieriem/g v0.5.0 h1:0WGfg4rfLD70T5e3SLZ9HtmmLQlRPChoKG15B3dfyqI=
 github.com/knieriem/g v0.5.0/go.mod h1:fhVCOebbqbZTIN+bv0aU/gOAasuZlP0ETeaF4N2553A=
+github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef h1:XHb/eK43B8XuqAO5jHILCXzZP3pBamGmn5PcGjTZTuE=
+github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef/go.mod h1:skc5Zgfi3XE//1zgGGPC1abynJwsZhFxOiwkCrwL4Z8=
 github.com/lionkov/go9p v0.0.0-20180620135904-0a603dd6808a/go.mod h1:Nbrxd4FljESFB/bUvzT5xm1VNO2VfzMKSIv4L++4J4U=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=

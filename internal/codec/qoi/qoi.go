@@ -1,12 +1,11 @@
-package xbm
+package qoi
 
 import (
 	"bytes"
 	"image"
 	"io"
 
-	decode "github.com/knieriem/g/image/xbm"
-	"github.com/xyproto/xbm"
+	"github.com/kriticalflare/qoi"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/opts"
@@ -20,11 +19,11 @@ func init() {
 type impl struct{}
 
 func (impl) String() string {
-	return "xbm"
+	return "qoi"
 }
 
 func (impl) Extensions() []string {
-	return []string{"xbm"}
+	return []string{"qoi"}
 }
 
 func (impl) CanEncode() bool {
@@ -36,26 +35,25 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 }
 
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
-	buf := make([]byte, 64)
+	magic := []byte{'q', 'o', 'i', 'f'}
 
-	n, err := reader.ReadAt(buf, 0)
-	if err != nil && err != io.EOF {
+	buf := make([]byte, 4)
+
+	if _, err := reader.ReadAt(buf, 0); err != nil {
 		return 0, nil, err
 	}
 
-	buf = buf[:n]
-
-	if bytes.Contains(buf, []byte("#define")) && bytes.Contains(buf, []byte("static char")) {
-		return 90, buf, nil
+	if bytes.Equal(buf, magic) {
+		return 100, magic, nil
 	}
 
 	return 0, nil, nil
 }
 
-func (impl) Decode(r io.Reader) (image.Image, error) {
-	return decode.Decode(r)
+func (impl) Decode(reader io.Reader) (image.Image, error) {
+	return qoi.ImageDecode(reader)
 }
 
-func (impl) Encode(w io.Writer, img image.Image, _ opts.Common) error {
-	return xbm.Encode(w, img)
+func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
+	return qoi.ImageEncode(writer, img)
 }
