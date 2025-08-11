@@ -71,34 +71,39 @@ func Sniff(reader io.Reader) (*Sniffed, io.Reader, error) {
 	}, bytes.NewReader(buf), nil
 }
 
-func Detect(output, override string) (Codec, error) {
-	if override != "" {
-		codec, ok := codecs[override]
-		if !ok {
-			return nil, fmt.Errorf("unsupported output codec: %q", override)
-		}
+func Detect(output, override string) (Codec, string, error) {
+	ext := override
 
-		if !codec.CanEncode() {
-			return nil, fmt.Errorf("decode-only output codec: %q", override)
-		}
-
-		return codec, nil
-	}
-
-	if output == "-" {
-		return nil, errors.New("missing codec for output")
-	}
-
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(output), "."))
 	if ext == "" {
-		return nil, fmt.Errorf("output filename %q has no extension", output)
+		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(output), "."))
+		if ext == "" {
+			return nil, "", fmt.Errorf("output filename %q has no extension", output)
+		}
+	}
+
+	codec, err := FindCodec(ext)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if codec == nil {
+		return nil, "", fmt.Errorf("unsupported output codec: %q", ext)
+	}
+
+	return codec, ext, nil
+}
+
+func FindCodec(ext string) (Codec, error) {
+	codec, ok := codecs[ext]
+	if ok {
+		return codec, nil
 	}
 
 	for _, codec := range codecs {
 		for _, alias := range codec.Extensions() {
-			if ext == strings.ToLower(alias) {
+			if ext == alias {
 				if !codec.CanEncode() {
-					return nil, fmt.Errorf("decode-only output codec: %q", override)
+					return nil, fmt.Errorf("decode-only output codec: %q", ext)
 				}
 
 				return codec, nil
@@ -106,5 +111,5 @@ func Detect(output, override string) (Codec, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("unsupported or unknown file extension: %q", ext)
+	return nil, nil
 }

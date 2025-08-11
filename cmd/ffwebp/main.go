@@ -139,10 +139,12 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	common.FillDefaults()
 
-	oCodec, err := codec.Detect(output, cmd.String("codec"))
+	oCodec, oExt, err := codec.Detect(output, cmd.String("codec"))
 	if err != nil {
 		return err
 	}
+
+	common.OutputExtension = oExt
 
 	logx.Printf("output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
 

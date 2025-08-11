@@ -86,7 +86,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 	return tiff.Decode(reader)
 }
 
-func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
+func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
 	logx.Printf("tiff: compression=%d predictor=%t\n", compression, predictor)
 
 	return tiff.Encode(writer, img, &tiff.Options{
