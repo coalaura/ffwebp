@@ -47,6 +47,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 				if value < 1 || value > 10 {
 					return fmt.Errorf("invalid jpegxl.effort: %d", value)
 				}
+
 				return nil
 			},
 		},

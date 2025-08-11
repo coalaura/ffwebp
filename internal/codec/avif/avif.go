@@ -49,6 +49,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 				if v < 0 || v > 100 {
 					return fmt.Errorf("invalid avif.quality-alpha: %d", v)
 				}
+
 				return nil
 			},
 		},
@@ -61,6 +62,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 				if v < 0 || v > 10 {
 					return fmt.Errorf("invalid avif.speed: %d", v)
 				}
+
 				return nil
 			},
 		},
@@ -73,6 +75,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 				if v != 444 && v != 422 && v != 420 {
 					return fmt.Errorf("invalid avif.chroma: %d", v)
 				}
+
 				return nil
 			},
 		},
