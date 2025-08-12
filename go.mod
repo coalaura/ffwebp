@@ -2,7 +2,7 @@ module github.com/coalaura/ffwebp
 
 go 1.24.5
 
-require github.com/urfave/cli/v3 v3.3.8
+require github.com/urfave/cli/v3 v3.3.9
 
 require (
 	github.com/anthonynsimon/bild v0.14.0
@@ -21,14 +21,14 @@ require (
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/xyproto/xbm v1.0.0
-	golang.org/x/image v0.18.0
+	golang.org/x/image v0.30.0
 )
 
 require (
-	github.com/ebitengine/purego v0.8.3 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
-	golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 )
