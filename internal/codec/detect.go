@@ -33,7 +33,7 @@ func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.R
 	if !ignoreExtension {
 		ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(input), "."))
 		if ext != "" {
-			codec, _ := FindCodec(ext)
+			codec, _ := FindCodec(ext, false)
 			if codec != nil {
 				return &Sniffed{
 					Header:     []byte("." + ext),
@@ -95,7 +95,7 @@ func Detect(output, override string) (Codec, string, error) {
 		}
 	}
 
-	codec, err := FindCodec(ext)
+	codec, err := FindCodec(ext, true)
 	if err != nil {
 		return nil, "", err
 	}
@@ -107,7 +107,7 @@ func Detect(output, override string) (Codec, string, error) {
 	return codec, ext, nil
 }
 
-func FindCodec(ext string) (Codec, error) {
+func FindCodec(ext string, requireEncode bool) (Codec, error) {
 	codec, ok := codecs[ext]
 	if ok {
 		return codec, nil
@@ -116,7 +116,7 @@ func FindCodec(ext string) (Codec, error) {
 	for _, codec := range codecs {
 		for _, alias := range codec.Extensions() {
 			if ext == alias {
-				if !codec.CanEncode() {
+				if requireEncode && !codec.CanEncode() {
 					return nil, fmt.Errorf("decode-only output codec: %q", ext)
 				}
 

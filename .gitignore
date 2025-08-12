@@ -1,5 +1,5 @@
-bin
-example.*
 test.*
-*.exe
+encoded.*
+decoded.*
+ffwebp.exe
 ffwebp
