@@ -25,6 +25,8 @@ github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb h1:JF9kOhBBk4WPF7luXFu5yR+
 github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb/go.mod h1:GHI1bnmAcbp96z6LNfBJvtrjxhaXGkbsk967utPlvL8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/samuel/go-pcx v0.0.0-20210515040514-6a5ce4d132f7 h1:WhAiClm3vGzSl2EWdFsCFBEu2jEhHGa8qGsz4iIEpRc=
+github.com/samuel/go-pcx v0.0.0-20210515040514-6a5ce4d132f7/go.mod h1:8ofl4LzpDayZKQZYbUyCDW41Y6lgVoO02ABp57OASxY=
 github.com/sergeymakinen/go-bmp v1.0.0 h1:SdGTzp9WvCV0A1V0mBeaS7kQAwNLdVJbmHlqNWq0R+M=
 github.com/sergeymakinen/go-bmp v1.0.0/go.mod h1:/mxlAQZRLxSvJFNIEGGLBE/m40f3ZnUifpgVDlcUIEY=
 github.com/sergeymakinen/go-ico v1.0.0-beta.0 h1:m5qKH7uPKLdrygMWxbamVn+tl2HfiA3K6MFJw4GfZvQ=
