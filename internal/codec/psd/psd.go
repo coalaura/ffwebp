@@ -64,7 +64,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
-	logx.Printf("psd: skipMerged=%t\n", skipMerged)
+	logx.Printf("psd: skip-merged=%t\n", skipMerged)
 
 	img, _, err := psd.Decode(reader, &psd.DecodeOptions{
 		SkipMergedImage: skipMerged,

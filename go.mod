@@ -17,6 +17,8 @@ require (
 	github.com/samuel/go-pcx v0.0.0-20210515040514-6a5ce4d132f7
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0
 	github.com/spakin/netpbm v1.3.2
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/xyproto/xbm v1.0.0
 	golang.org/x/image v0.18.0
 )
@@ -26,4 +28,6 @@ require (
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
+	golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4 // indirect
+	golang.org/x/text v0.16.0 // indirect
 )

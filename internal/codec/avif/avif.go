@@ -101,7 +101,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	logx.Printf("avif: quality=%d, quality-alpha=%d, speed=%d, chroma=%d\n", options.Quality, qualityA, speed, chroma)
+	logx.Printf("avif: quality=%d quality-alpha=%d speed=%d chroma=%d\n", options.Quality, qualityA, speed, chroma)
 
 	return avif.Encode(writer, img, avif.Options{
 		Quality:           options.Quality,

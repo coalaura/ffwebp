@@ -40,7 +40,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{
 			Name:        "jpegxl.effort",
-			Usage:       "JPEG XL: encode effort (1=fast .. 10=slow). Default 7",
+			Usage:       "JPEGXL: encode effort (1=fast .. 10=slow). Default 7",
 			Value:       7,
 			Destination: &effort,
 			Validator: func(value int) error {
