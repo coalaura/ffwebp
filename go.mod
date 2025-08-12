@@ -10,6 +10,7 @@ require (
 	github.com/gen2brain/avif v0.4.4
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gen2brain/webp v0.5.5
+	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/knieriem/g v0.5.0
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
