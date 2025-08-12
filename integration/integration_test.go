@@ -28,6 +28,8 @@ func TestFFWebP(t *testing.T) {
 	executable, err := buildExecutable()
 	require.NoError(t, err)
 
+	defer os.Remove(executable)
+
 	// resolve all test files
 	files, err := listFiles("images")
 	require.NoError(t, err)
