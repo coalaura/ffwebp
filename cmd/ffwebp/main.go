@@ -37,6 +37,11 @@ func main() {
 			Aliases: []string{"c"},
 			Usage:   "force output codec (jpeg, png, ...)",
 		},
+		&cli.BoolFlag{
+			Name:    "sniff",
+			Aliases: []string{"f"},
+			Usage:   "force sniffing of input codec (ignore extension)",
+		},
 		&cli.IntFlag{
 			Name:    "quality",
 			Aliases: []string{"q"},
@@ -117,7 +122,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 		logx.Printf("reading input from <stdin>\n")
 	}
 
-	sniffed, reader, err := codec.Sniff(reader, input)
+	sniffed, reader, err := codec.Sniff(reader, input, cmd.Bool("sniff"))
 	if err != nil {
 		return err
 	}
