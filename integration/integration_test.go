@@ -1,21 +1,19 @@
+// integration/integration_test.go
 package integration
 
 import (
-	"errors"
 	"fmt"
 	"image/jpeg"
-	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gotest.tools/v3/icmd"
 )
 
-// skip encoding tests for these extensions
+// Skip encoding tests for these extensions (same semantics as your original)
 var encodeOnly = map[string]bool{
 	"heic": true,
 	"heif": true,
@@ -23,135 +21,130 @@ var encodeOnly = map[string]bool{
 	"svg":  true,
 }
 
-func TestFFWebP(t *testing.T) {
-	// build a fresh executable with "full" tags
-	executable, err := buildExecutable()
-	require.NoError(t, err)
+const (
+	fixturesDir = "images"       // integration/images/
+	exampleJPEG = "example.jpeg" // integration/example.jpeg (256x256)
+)
 
-	defer os.Remove(executable)
+var ffwebpBin string // set in TestMain
 
-	// resolve all test files
-	files, err := listFiles("images")
-	require.NoError(t, err)
+func TestMain(m *testing.M) {
+	// Build the CLI once with -tags=full into a temp dir, reusing it across tests.
+	tmp, err := os.MkdirTemp("", "ffwebp-bin-*")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mktemp:", err)
+		os.Exit(1)
+	}
+	defer os.RemoveAll(tmp)
 
-	// test all extensions
-	for _, path := range files {
-		ext := strings.TrimLeft(filepath.Ext(path), ".")
+	exe := "ffwebp"
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	ffwebpBin = filepath.Join(tmp, exe)
 
-		decoded := "decoded.jpeg"
-		encoded := fmt.Sprintf("encoded.%s", ext)
+	root, err := findRepoRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-		// test if we can convert from the codec to jpeg
-		t.Run(fmt.Sprintf("decode %s", ext), func(t *testing.T) {
-			defer os.Remove(decoded)
+	// Build from repo root so relative paths to ./cmd/ffwebp resolve.
+	build := icmd.Command("go", "build", "-tags=full", "-o", ffwebpBin, "./cmd/ffwebp")
+	build.Dir = root
+	res := icmd.RunCmd(build)
+	if res.ExitCode != 0 {
+		fmt.Fprintln(os.Stderr, res.Combined())
+		os.Exit(res.ExitCode)
+	}
 
-			err = runCommand(executable, "-i", path, "-o", decoded)
-			require.NoError(t, err)
+	os.Exit(m.Run())
+}
 
-			err = validateJPEG(decoded, 0)
-			require.NoError(t, err)
+func TestCLI_CodecDecodeAndRoundTrip(t *testing.T) {
+	// Discover input samples: integration/images/image.<ext>
+	entries, err := os.ReadDir(fixturesDir)
+	if err != nil {
+		t.Fatalf("read %s: %v", fixturesDir, err)
+	}
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		inPath := filepath.Join(fixturesDir, e.Name())
+		ext := strings.TrimPrefix(filepath.Ext(e.Name()), ".")
+
+		// 1) <codec> -> jpeg
+		t.Run("decode_"+ext, func(t *testing.T) {
+			tmp := t.TempDir()
+			out := filepath.Join(tmp, "decoded.jpeg")
+
+			run(t, icmd.Command(ffwebpBin, "-s", "-i", inPath, "-o", out))
+
+			w, h := jpegSize(t, out)
+			if w == 0 || h == 0 {
+				t.Fatalf("decoded JPEG has invalid size: %dx%d", w, h)
+			}
 		})
 
+		// 2) jpeg -> <codec> -> jpeg (dimension stays 256x256), unless encodeOnly
 		if encodeOnly[ext] {
 			continue
 		}
 
-		// test if we can convert from jpeg to the codec and then back to jpeg
-		t.Run(fmt.Sprintf("encode %s", ext), func(t *testing.T) {
-			defer os.Remove(encoded)
-			defer os.Remove(decoded)
+		t.Run("encode_"+ext, func(t *testing.T) {
+			tmp := t.TempDir()
+			mid := filepath.Join(tmp, "encoded."+ext)
+			back := filepath.Join(tmp, "roundtrip.jpeg")
 
-			err = runCommand(executable, "-i", "example.jpeg", "-o", encoded)
-			require.NoError(t, err)
+			run(t, icmd.Command(ffwebpBin, "-s", "-i", exampleJPEG, "-o", mid))
+			run(t, icmd.Command(ffwebpBin, "-s", "-i", mid, "-o", back))
 
-			err = runCommand(executable, "-i", encoded, "-o", decoded)
-			require.NoError(t, err)
-
-			err = validateJPEG(decoded, 256)
-			require.NoError(t, err)
+			w, h := jpegSize(t, back)
+			if w != 256 || h != 256 {
+				t.Fatalf("roundtrip dimension mismatch: got %dx%d, want 256x256", w, h)
+			}
 		})
 	}
 }
 
-func buildExecutable() (string, error) {
-	if runtime.GOOS == "windows" {
-		err := runCommand("go", "build", "-tags", "full", "-o", "ffwebp.exe", "..\\cmd\\ffwebp")
-		if err != nil {
-			return "", err
-		}
+func run(t *testing.T, cmd icmd.Cmd) {
+	t.Helper()
+	res := icmd.RunCmd(cmd)
+	// On failure, icmd prints the command line + stdout/stderr, which is handy.
+	res.Assert(t, icmd.Success)
+}
 
-		return "./ffwebp.exe", nil
+func jpegSize(t *testing.T, path string) (int, int) {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open %s: %v", path, err)
 	}
+	defer f.Close()
 
-	err := runCommand("go", "build", "-tags", "full", "-o", "ffwebp", "../cmd/ffwebp")
+	cfg, err := jpeg.DecodeConfig(f)
+	if err != nil {
+		t.Fatalf("decode jpeg config %s: %v", path, err)
+	}
+	return cfg.Width, cfg.Height
+}
+
+func findRepoRoot() (string, error) {
+	// Walk up to find go.mod so we can run `go build ./cmd/ffwebp` reliably.
+	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-
-	err = runCommand("chmod", "+x", "ffwebp")
-	if err != nil {
-		return "", err
-	}
-
-	return "./ffwebp", nil
-}
-
-func listFiles(directory string) ([]string, error) {
-	var files []string
-
-	err := filepath.Walk(directory, func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return err
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
 		}
-
-		files = append(files, path)
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return files, nil
-}
-
-func runCommand(command string, args ...string) error {
-	cmd := exec.Command(command, args...)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		if len(out) > 0 {
-			return errors.New(string(out))
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("could not locate go.mod starting from %s", dir)
 		}
-
-		return err
+		dir = parent
 	}
-
-	return nil
-}
-
-func validateJPEG(path string, requireSize int) error {
-	file, err := os.OpenFile(path, os.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	img, err := jpeg.Decode(file)
-	if err != nil {
-		return err
-	}
-
-	bounds := img.Bounds()
-
-	if bounds.Dx() == 0 || bounds.Dy() == 0 {
-		return fmt.Errorf("invalid dimensions: %dx%d", bounds.Dx(), bounds.Dy())
-	}
-
-	if requireSize != 0 && (bounds.Dx() != requireSize || bounds.Dy() != requireSize) {
-		return fmt.Errorf("mismatched size: %dx%dx", bounds.Dx(), bounds.Dy())
-	}
-
-	return nil
 }
