@@ -8,6 +8,8 @@ github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a h1:eSqaRmdlZ9JsJ7JuW
 github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a/go.mod h1:US5WvgEHtG+BvWNNs6gk937h0QL2g2x+r7RH8m3g80Y=
 github.com/gen2brain/avif v0.4.4 h1:Ga/ss7qcWWQm2bxFpnjYjhJsNfZrWs5RsyklgFjKRSE=
 github.com/gen2brain/avif v0.4.4/go.mod h1:/XCaJcjZraQwKVhpu9aEd9aLOssYOawLvhMBtmHVGqk=
+github.com/gen2brain/heic v0.4.5 h1:Cq3hPu6wwlTJNv2t48ro3oWje54h82Q5pALeCBNgaSk=
+github.com/gen2brain/heic v0.4.5/go.mod h1:ECnpqbqLu0qSje4KSNWUUDK47UPXPzl80T27GWGEL5I=
 github.com/gen2brain/jpegxl v0.4.5 h1:TWpVEn5xkIfsswzkjHBArd0Cc9AE0tbjBSoa0jDsrbo=
 github.com/gen2brain/jpegxl v0.4.5/go.mod h1:4kWYJ18xCEuO2vzocYdGpeqNJ990/Gjy3uLMg5TBN6I=
 github.com/gen2brain/webp v0.5.5 h1:MvQR75yIPU/9nSqYT5h13k4URaJK3gf9tgz/ksRbyEg=

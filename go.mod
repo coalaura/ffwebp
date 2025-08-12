@@ -8,6 +8,7 @@ require (
 	github.com/anthonynsimon/bild v0.14.0
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.4.4
+	github.com/gen2brain/heic v0.4.5
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gen2brain/webp v0.5.5
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
