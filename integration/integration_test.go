@@ -15,10 +15,12 @@ import (
 var (
 	executable = "ffwebp"
 	encodeOnly = map[string]bool{
+		"dng":  true,
 		"heic": true,
 		"heif": true,
 		"psd":  true,
 		"svg":  true,
+		"xcf":  true,
 	}
 )
 

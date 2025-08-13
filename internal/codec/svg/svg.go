@@ -64,7 +64,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 }
 
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
-	buf := make([]byte, 128)
+	buf := make([]byte, 256)
 
 	n, err := reader.ReadAt(buf, 0)
 	if err != nil && err != io.EOF {

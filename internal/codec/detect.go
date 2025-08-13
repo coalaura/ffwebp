@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -30,17 +31,15 @@ func (s *Sniffed) String() string {
 }
 
 func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.Reader, error) {
+	var (
+		hintedExt   string
+		hintedCodec Codec
+	)
+
 	if !ignoreExtension {
-		ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(input), "."))
-		if ext != "" {
-			codec, _ := FindCodec(ext, false)
-			if codec != nil {
-				return &Sniffed{
-					Header:     []byte("." + ext),
-					Confidence: 100,
-					Codec:      codec,
-				}, reader, nil
-			}
+		hintedExt = strings.ToLower(strings.TrimPrefix(filepath.Ext(input), "."))
+		if hintedExt != "" {
+			hintedCodec, _ = FindCodec(hintedExt, false)
 		}
 	}
 
@@ -51,10 +50,15 @@ func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.R
 
 	ra := bytes.NewReader(buf)
 
+	type candidate struct {
+		codec      Codec
+		confidence int
+		header     []byte
+	}
+
 	var (
-		best  int
-		magic []byte
-		guess Codec
+		best int
+		list []candidate
 	)
 
 	for _, codec := range codecs {
@@ -69,21 +73,59 @@ func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.R
 			return nil, nil, err
 		}
 
+		fmt.Println(codec.String(), confidence)
+
+		if confidence <= 0 {
+			continue
+		}
+
+		list = append(list, candidate{
+			codec:      codec,
+			confidence: confidence,
+			header:     header,
+		})
+
 		if confidence > best {
 			best = confidence
-			magic = header
-			guess = codec
 		}
 	}
 
-	if guess == nil {
+	if len(list) == 0 || best <= 0 {
 		return nil, nil, errors.New("unknown input format")
 	}
 
+	var top []candidate
+
+	for _, cand := range list {
+		if cand.confidence == best {
+			top = append(top, cand)
+		}
+	}
+
+	if hintedCodec != nil {
+		for _, cand := range top {
+			if cand.codec != hintedCodec {
+				continue
+			}
+
+			return &Sniffed{
+				Header:     cand.header,
+				Confidence: cand.confidence,
+				Codec:      cand.codec,
+			}, bytes.NewReader(buf), nil
+		}
+	}
+
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].codec.String() < top[j].codec.String()
+	})
+
+	chosen := top[0]
+
 	return &Sniffed{
-		Header:     magic,
-		Confidence: best,
-		Codec:      guess,
+		Header:     chosen.header,
+		Confidence: chosen.confidence,
+		Codec:      chosen.codec,
 	}, bytes.NewReader(buf), nil
 }
 

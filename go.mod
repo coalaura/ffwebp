@@ -14,6 +14,7 @@ require (
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
+	github.com/mdouchement/dng v0.0.0-20230730131840-4066c9106942
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb
 	github.com/samuel/go-pcx v0.0.0-20210515040514-6a5ce4d132f7

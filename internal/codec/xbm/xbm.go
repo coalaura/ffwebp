@@ -5,7 +5,7 @@ import (
 	"image"
 	"io"
 
-	"github.com/coalaura/xpm"
+	"github.com/coalaura/xbm"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/opts"
@@ -21,11 +21,11 @@ func init() {
 type impl struct{}
 
 func (impl) String() string {
-	return "xpm"
+	return "xbm"
 }
 
 func (impl) Extensions() []string {
-	return []string{"xpm"}
+	return []string{"xbm"}
 }
 
 func (impl) CanEncode() bool {
@@ -35,8 +35,8 @@ func (impl) CanEncode() bool {
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.StringFlag{
-			Name:        "xpm.name",
-			Usage:       "XPM: name of the image definition",
+			Name:        "xbm.name",
+			Usage:       "XBM: name of the image definition",
 			Value:       "image",
 			Destination: &name,
 		},
@@ -53,19 +53,19 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	buf = buf[:n]
 
-	if bytes.Contains(buf, []byte("/* XPM */")) && bytes.Contains(buf, []byte("bits[]")) {
-		return 90, buf, nil
+	if bytes.Contains(buf, []byte("#define")) && bytes.Contains(buf, []byte("bits[]")) {
+		return 80, buf, nil
 	}
 
 	return 0, nil, nil
 }
 
 func (impl) Decode(r io.Reader) (image.Image, error) {
-	return xpm.Decode(r)
+	return xbm.Decode(r)
 }
 
 func (impl) Encode(w io.Writer, img image.Image, _ opts.Common) error {
-	return xpm.Encode(w, img, xpm.XPMOptions{
+	return xbm.Encode(w, img, xbm.XBMOptions{
 		Name: name,
 	})
 }
