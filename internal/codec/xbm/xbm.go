@@ -5,13 +5,14 @@ import (
 	"image"
 	"io"
 
-	decode "github.com/knieriem/g/image/xbm"
-	"github.com/xyproto/xbm"
+	"github.com/coalaura/xbm"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/urfave/cli/v3"
 )
+
+var name string
 
 func init() {
 	codec.Register(impl{})
@@ -32,11 +33,18 @@ func (impl) CanEncode() bool {
 }
 
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
-	return flags
+	return append(flags,
+		&cli.StringFlag{
+			Name:        "xbm.name",
+			Usage:       "XBM: name of the image definition",
+			Value:       "image",
+			Destination: &name,
+		},
+	)
 }
 
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
-	buf := make([]byte, 64)
+	buf := make([]byte, 128)
 
 	n, err := reader.ReadAt(buf, 0)
 	if err != nil && err != io.EOF {
@@ -45,7 +53,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	buf = buf[:n]
 
-	if bytes.Contains(buf, []byte("#define")) && bytes.Contains(buf, []byte("static char")) {
+	if bytes.Contains(buf, []byte("#define")) && bytes.Contains(buf, []byte("bits[]")) {
 		return 90, buf, nil
 	}
 
@@ -53,9 +61,11 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(r io.Reader) (image.Image, error) {
-	return decode.Decode(r)
+	return xbm.Decode(r)
 }
 
 func (impl) Encode(w io.Writer, img image.Image, _ opts.Common) error {
-	return xbm.Encode(w, img)
+	return xbm.Encode(w, img, xbm.XBMOptions{
+		Name: name,
+	})
 }

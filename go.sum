@@ -1,5 +1,7 @@
 github.com/anthonynsimon/bild v0.14.0 h1:IFRkmKdNdqmexXHfEU7rPlAmdUZ8BDZEGtGHDnGWync=
 github.com/anthonynsimon/bild v0.14.0/go.mod h1:hcvEAyBjTW69qkKJTfpcDQ83sSZHxwOunsseDfeQhUs=
+github.com/coalaura/xbm v0.0.4 h1:B8TKdo44fogAAnpWKSeABqUtspLpnwVlU4lwNYJKXEE=
+github.com/coalaura/xbm v0.0.4/go.mod h1:FEAK5clZSXwDFfQbpdPguUclWBKdU7uDvwPAuzVkcPc=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.8.4 h1:CF7LEKg5FFOsASUj0+QwaXf8Ht6TlFxg09+S9wz0omw=
@@ -20,11 +22,8 @@ github.com/gopherjs/gopherjs v1.17.2 h1:fQnZVsXk8uxXIStYb0N4bGk7jeyTalG/wsZjQ25d
 github.com/gopherjs/gopherjs v1.17.2/go.mod h1:pRRIvn/QzFLrKfvEz3qUuEhtE/zLCWfreZ6J5gM2i+k=
 github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f h1:1LkiAnH6RhOEbQAcfcEcixM5IsegqFi6IH0Nz0ZGqYs=
 github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f/go.mod h1:mQEoc766DxPTAwQ54neWTK/lFqIeSO7OU6bqZsceglw=
-github.com/knieriem/g v0.5.0 h1:0WGfg4rfLD70T5e3SLZ9HtmmLQlRPChoKG15B3dfyqI=
-github.com/knieriem/g v0.5.0/go.mod h1:fhVCOebbqbZTIN+bv0aU/gOAasuZlP0ETeaF4N2553A=
 github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef h1:XHb/eK43B8XuqAO5jHILCXzZP3pBamGmn5PcGjTZTuE=
 github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef/go.mod h1:skc5Zgfi3XE//1zgGGPC1abynJwsZhFxOiwkCrwL4Z8=
-github.com/lionkov/go9p v0.0.0-20180620135904-0a603dd6808a/go.mod h1:Nbrxd4FljESFB/bUvzT5xm1VNO2VfzMKSIv4L++4J4U=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=
 github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb h1:JF9kOhBBk4WPF7luXFu5yR+WgaFm9L/KiHJHhU9vDwA=
@@ -49,13 +48,10 @@ github.com/tetratelabs/wazero v1.9.0 h1:IcZ56OuxrtaEz8UYNRHBrUa9bYeX9oVY93KspZZB
 github.com/tetratelabs/wazero v1.9.0/go.mod h1:TSbcXCfFP0L2FGkRPxHphadXPjo1T6W+CseNNY7EkjM=
 github.com/urfave/cli/v3 v3.4.1 h1:1M9UOCy5bLmGnuu1yn3t3CB4rG79Rtoxuv1sPhnm6qM=
 github.com/urfave/cli/v3 v3.4.1/go.mod h1:FJSKtM/9AiiTOJL4fJ6TbMUkxBXn7GO9guZqoZtpYpo=
-github.com/xyproto/xbm v1.0.0 h1:R5/A2+yhyy4V2c626bdIVfS1UNwE3efhiEBuKXU6u3A=
-github.com/xyproto/xbm v1.0.0/go.mod h1:m2xrjsNmxuzBrx6gs4rSgxgpJWXS01j9KxYgjxhcnoc=
 golang.org/x/image v0.30.0 h1:jD5RhkmVAnjqaCUXfbGBrn3lpxbknfN9w2UhHHU+5B4=
 golang.org/x/image v0.30.0/go.mod h1:SAEUTxCCMWSrJcCy/4HwavEsfZZJlYxeHLc6tTiAe/c=
 golang.org/x/net v0.43.0 h1:lat02VYK2j4aLzMzecihNvTlJNQUq316m2Mr9rnM6YE=
 golang.org/x/net v0.43.0/go.mod h1:vhO1fvI4dGsIjh73sWfUVjj3N7CA9WkKJNQm2svM6Jg=
-golang.org/x/sys v0.16.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/text v0.28.0 h1:rhazDwis8INMIwQ4tpjLDzUhx6RlXqZNPEM0huQojng=
 golang.org/x/text v0.28.0/go.mod h1:U8nCwOR8jO/marOQ0QbDiOngZVEBB7MAiitBuMjXiNU=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
