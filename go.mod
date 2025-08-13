@@ -1,8 +1,8 @@
 module github.com/coalaura/ffwebp
 
-go 1.24.6
+go 1.25.0
 
-require github.com/urfave/cli/v3 v3.3.9
+require github.com/urfave/cli/v3 v3.4.1
 
 require (
 	github.com/anthonynsimon/bild v0.14.0
