@@ -11,6 +11,7 @@ require (
 	github.com/gen2brain/heic v0.4.5
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gen2brain/webp v0.5.5
+	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
