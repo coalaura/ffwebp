@@ -15,14 +15,10 @@ FFWebP is a small, single-binary CLI for converting images between formats, thin
 
 ### Prebuilt binaries (recommended)
 
-- Download the appropriate binary for your OS/arch from the [releases](https://github.com/coalaura/ffwebp/releases).
-- Choose a variant:
-  - core: includes the most popular codecs for everyday use
-  - full: contains all available codecs
-- Make the binary executable and place it on your `PATH`.
+You can bootstrap **ffwebp-full** with a single command. This script will detect your OS and CPU (`amd64`/`arm64`), download the correct binary and install it to `/usr/local/bin/ffwebp`.
 
 ```bash
-chmod +x ffwebp && sudo mv ffwebp /usr/local/bin/
+curl -sL https://src.w2k.sh/ffwebp/install.sh | sh
 ```
 
 ### Build from source (optional)
