@@ -87,8 +87,6 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 			return nil, nil, err
 		}
 
-		fmt.Println(codec.String(), confidence)
-
 		if confidence <= 0 {
 			continue
 		}

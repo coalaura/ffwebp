@@ -96,7 +96,7 @@ func main() {
 	app := &cli.Command{
 		Name:                   "ffwebp",
 		Usage:                  "Convert any image format into any other image format",
-		Version:                Version,
+		Version:                fmt.Sprintf("%s %s", Version, tags()),
 		Flags:                  flags,
 		Action:                 run,
 		Writer:                 os.Stderr,

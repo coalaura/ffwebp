@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 	"sort"
 	"strings"
@@ -10,22 +11,53 @@ import (
 	"github.com/coalaura/ffwebp/internal/logx"
 )
 
-func banner() {
+func codecList() []string {
 	codecs := codec.All()
 
 	names := make([]string, len(codecs))
 
 	for i, c := range codecs {
 		names[i] = c.String()
+
+		if !c.CanEncode() {
+			names[i] += "*"
+		}
 	}
 
 	sort.Strings(names)
 
+	return names
+}
+
+func tags() string {
+	var (
+		codec   = "none"
+		feature = "none"
+	)
+
 	if effects.HasEffects() {
-		names = append(names, "effects")
+		feature = "effects"
 	}
 
-	build := strings.Join(names, ",")
+	codecs := codecList()
+
+	if len(codecs) > 0 {
+		codec = strings.Join(codecs, " ")
+	}
+
+	return fmt.Sprintf("[codecs: %s] [features: %s]", codec, feature)
+}
+
+func banner() {
+	tags := codecList()
+
+	if effects.HasEffects() {
+		tags = append(tags, "effects")
+	}
+
+	if len(tags) == 0 {
+		tags = []string{"none"}
+	}
 
 	logx.Printf("ffwebp version %s\n", Version)
 	logx.Printf(
@@ -34,8 +66,5 @@ func banner() {
 		runtime.Version(),
 		runtime.GOARCH,
 	)
-	logx.Printf(
-		"  configuration: -tags %s\n",
-		build,
-	)
+	logx.Printf("  %s\n", strings.Join(tags, ","))
 }
