@@ -2,4 +2,4 @@ test.*
 encoded.*
 decoded.*
 ffwebp.exe
-ffwebp
+/ffwebp

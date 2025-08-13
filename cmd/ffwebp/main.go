@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/coalaura/ffwebp/internal/builtins"
@@ -23,14 +25,19 @@ func main() {
 		&cli.StringFlag{
 			Name:    "input",
 			Aliases: []string{"i"},
-			Usage:   "input file (\"-\" = stdin)",
+			Usage:   "input file or pattern (\"-\" = stdin, supports globs and %d sequences)",
 			Value:   "-",
 		},
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
-			Usage:   "output file (\"-\" = stdout)",
+			Usage:   "output file, directory, or pattern (\"-\" = stdout)",
 			Value:   "-",
+		},
+		&cli.IntFlag{
+			Name:  "start-number",
+			Usage: "starting number for %%d output patterns",
+			Value: 1,
 		},
 		&cli.StringFlag{
 			Name:    "codec",
@@ -97,17 +104,113 @@ func run(_ context.Context, cmd *cli.Command) error {
 	banner()
 
 	var (
-		n      int
 		input  string
 		output string
 
 		common opts.Common
+	)
 
+	common.Quality = cmd.Int("quality")
+	common.Lossless = cmd.Bool("lossless")
+
+	common.FillDefaults()
+
+	input = cmd.String("input")
+	output = cmd.String("output")
+
+	var inputs []string
+
+	if input == "-" {
+		inputs = []string{"-"}
+	} else if hasSeq(input) {
+		files, err := expandSeq(input)
+		if err != nil {
+			return err
+		}
+
+		if len(files) == 0 {
+			return fmt.Errorf("no inputs match sequence: %s", filepath.ToSlash(input))
+		}
+
+		inputs = files
+	} else if isGlob(input) {
+		files, err := expandGlob(input)
+		if err != nil {
+			return err
+		}
+
+		if len(files) == 0 {
+			return fmt.Errorf("no inputs match glob: %s", filepath.ToSlash(input))
+		}
+
+		inputs = files
+	} else {
+		inputs = []string{input}
+	}
+
+	startNum := cmd.Int("start-number")
+
+	var outputs []string
+
+	if len(inputs) == 1 {
+		outputs = []string{output}
+	} else {
+		switch {
+		case output == "-":
+			return fmt.Errorf("multiple inputs require an output pattern or directory, not '-' ")
+		case hasSeq(output):
+			outs := make([]string, len(inputs))
+
+			for i := range inputs {
+				outs[i] = formatSeq(output, i, startNum)
+			}
+
+			outputs = outs
+		default:
+			outDir := output
+			if outDir == "" {
+				outDir = "."
+			}
+
+			if fi, err := os.Stat(outDir); err == nil {
+				if !fi.IsDir() {
+					return fmt.Errorf("output must be a directory or pattern when multiple inputs: %s", filepath.ToSlash(output))
+				}
+			} else {
+				if err := os.MkdirAll(outDir, 0755); err != nil {
+					return fmt.Errorf("create output directory: %w", err)
+				}
+			}
+
+			outs := make([]string, len(inputs))
+
+			for i := range inputs {
+				outs[i] = output
+			}
+
+			outputs = outs
+		}
+	}
+
+	for i := range inputs {
+		in := inputs[i]
+		out := outputs[i]
+
+		if err := processOne(in, out, cmd, &common); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func processOne(input, output string, cmd *cli.Command, common *opts.Common) error {
+	var (
 		reader io.Reader    = os.Stdin
 		writer *countWriter = &countWriter{w: os.Stdout}
 	)
 
-	if input = cmd.String("input"); input != "-" {
+	if input != "-" {
 		logx.Printf("opening input file %q\n", filepath.ToSlash(input))
 
 		file, err := os.OpenFile(input, os.O_RDONLY, 0)
@@ -122,15 +225,59 @@ func run(_ context.Context, cmd *cli.Command) error {
 		logx.Printf("reading input from <stdin>\n")
 	}
 
-	sniffed, reader, err := codec.Sniff(reader, input, cmd.Bool("sniff"))
+	sniffed, reader2, err := codec.Sniff(reader, input, cmd.Bool("sniff"))
 	if err != nil {
 		return err
 	}
 
+	reader = reader2
+
 	logx.Printf("sniffed codec: %s (%q)\n", sniffed.Codec, sniffed)
 
-	if output = cmd.String("output"); output != "-" {
+	var mappedFromDir bool
+
+	if output != "-" {
+		if fi, err := os.Stat(output); err == nil && fi.IsDir() {
+			name := filepath.Base(input)
+			output = filepath.Join(output, name)
+
+			mappedFromDir = true
+		} else if strings.HasSuffix(output, string(os.PathSeparator)) {
+			if err := os.MkdirAll(output, 0755); err != nil {
+				return err
+			}
+
+			name := filepath.Base(input)
+			output = filepath.Join(output, name)
+
+			mappedFromDir = true
+		}
+	}
+
+	oCodec, oExt, err := codec.Detect(output, cmd.String("codec"))
+	if err != nil {
+		return err
+	}
+
+	common.OutputExtension = oExt
+
+	logx.Printf("output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
+
+	if output != "-" {
+		curExt := strings.TrimPrefix(filepath.Ext(output), ".")
+
+		if mappedFromDir || curExt == "" || curExt != oExt {
+			base := strings.TrimSuffix(output, filepath.Ext(output))
+			output = base + "." + oExt
+		}
+	}
+
+	if output != "-" {
 		logx.Printf("opening output file %q\n", filepath.ToSlash(output))
+
+		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+			return err
+		}
 
 		file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
@@ -143,20 +290,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	} else {
 		logx.Printf("writing output to <stdout>\n")
 	}
-
-	common.Quality = cmd.Int("quality")
-	common.Lossless = cmd.Bool("lossless")
-
-	common.FillDefaults()
-
-	oCodec, oExt, err := codec.Detect(output, cmd.String("codec"))
-	if err != nil {
-		return err
-	}
-
-	common.OutputExtension = oExt
-
-	logx.Printf("output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
 
 	t0 := time.Now()
 
@@ -177,6 +310,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	t1 := time.Now()
 
+	var n int
+
 	img, n, err = effects.ApplyAll(img)
 	if err != nil {
 		return err
@@ -186,8 +321,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	t2 := time.Now()
 
-	err = oCodec.Encode(writer, img, common)
-	if err != nil {
+	if err := oCodec.Encode(writer, img, *common); err != nil {
 		return err
 	}
 
