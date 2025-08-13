@@ -3,6 +3,7 @@ package logx
 import (
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"sync/atomic"
 	"time"
@@ -18,9 +19,13 @@ func SetSilent() {
 	enabled.Store(false)
 }
 
-func Printf(format string, a ...any) {
+func Fprintf(writer io.Writer, format string, a ...any) {
 	if !enabled.Load() {
 		return
+	}
+
+	if writer == nil {
+		writer = os.Stderr
 	}
 
 	for i, v := range a {
@@ -36,15 +41,19 @@ func Printf(format string, a ...any) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, format, a...)
+	fmt.Fprintf(writer, format, a...)
 }
 
-func PrintKV(codec, key string, val any) {
+func Printf(format string, a ...any) {
+	Fprintf(os.Stderr, format, a...)
+}
+
+func Print(message string) {
 	if !enabled.Load() {
 		return
 	}
 
-	Printf("%s: %s=%v\n", codec, key, val)
+	fmt.Fprint(os.Stderr, message)
 }
 
 func Errorf(f string, a ...any) {
