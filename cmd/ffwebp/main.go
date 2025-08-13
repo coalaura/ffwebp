@@ -199,6 +199,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 	}
 
+	if len(inputs) == 1 {
+		return processOne(inputs[0], outputs[0], cmd, &common, nil)
+	}
+
 	threads := cmd.Int("threads")
 
 	if threads <= 0 {
@@ -206,6 +210,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 	}
 
 	threads = min(threads, len(inputs))
+
+	logx.Printf("using %d threads\n", threads)
 
 	type job struct {
 		i int
@@ -219,26 +225,18 @@ func run(_ context.Context, cmd *cli.Command) error {
 	for w := 0; w < threads; w++ {
 		go func() {
 			for j := range jobs {
-				var logger *bytes.Buffer
-
-				if threads > 1 {
-					logger = bytes.NewBuffer(nil)
-				}
+				var logger bytes.Buffer
 
 				in := inputs[j.i]
 				out := outputs[j.i]
 
-				local := common
-
-				if err := processOne(in, out, cmd, &local, logger); err != nil {
+				if err := processOne(in, out, cmd, &common, &logger); err != nil {
 					errs <- fmt.Errorf("%s -> %s: %w", filepath.ToSlash(in), filepath.ToSlash(out), err)
 				} else {
 					errs <- nil
 				}
 
-				if threads > 1 {
-					logx.Print(logger.String())
-				}
+				logx.Print(logger.String())
 			}
 		}()
 	}
