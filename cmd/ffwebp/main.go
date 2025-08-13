@@ -46,6 +46,10 @@ func main() {
 			Aliases: []string{"c"},
 			Usage:   "force output codec (jpeg, png, ...)",
 		},
+		&cli.StringFlag{
+			Name:  "input.codec",
+			Usage: "force input codec, skip sniffing (jpeg, png, ...)",
+		},
 		&cli.BoolFlag{
 			Name:    "sniff",
 			Aliases: []string{"f"},
@@ -265,7 +269,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 func processOne(input, output string, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
 	var (
 		reader io.Reader    = os.Stdin
-		writer *countWriter = &countWriter{w: os.Stdout}
+		writer *countWriter = &countWriter{
+			w: os.Stdout,
+		}
 	)
 
 	if input != "-" {
@@ -283,14 +289,16 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		logx.Fprintf(logger, "reading input from <stdin>\n")
 	}
 
-	sniffed, reader2, err := codec.Sniff(reader, input, cmd.Bool("sniff"))
+	forced := cmd.String("input.codec")
+
+	sniffed, reader2, err := codec.Sniff(reader, input, forced, cmd.Bool("sniff"))
 	if err != nil {
 		return err
 	}
 
 	reader = reader2
 
-	logx.Fprintf(logger, "sniffed codec: %s (%q)\n", sniffed.Codec, sniffed)
+	logx.Fprintf(logger, "sniffed codec: %s (%q, forced=%v)\n", sniffed.Codec, sniffed, forced != "")
 
 	var mappedFromDir bool
 

@@ -30,7 +30,20 @@ func (s *Sniffed) String() string {
 	return builder.String()
 }
 
-func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.Reader, error) {
+func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffed, io.Reader, error) {
+	if force != "" {
+		codec, err := FindCodec(strings.ToLower(force), false)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return &Sniffed{
+			Header:     []byte(force),
+			Confidence: 100,
+			Codec:      codec,
+		}, reader, nil
+	}
+
 	var (
 		hintedExt   string
 		hintedCodec Codec
@@ -38,6 +51,7 @@ func Sniff(reader io.Reader, input string, ignoreExtension bool) (*Sniffed, io.R
 
 	if !ignoreExtension {
 		hintedExt = strings.ToLower(strings.TrimPrefix(filepath.Ext(input), "."))
+
 		if hintedExt != "" {
 			hintedCodec, _ = FindCodec(hintedExt, false)
 		}
