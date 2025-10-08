@@ -14,6 +14,7 @@ import (
 	_ "github.com/coalaura/ffwebp/internal/builtins"
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/effects"
+	"github.com/coalaura/ffwebp/internal/help"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/nfnt/resize"
@@ -33,7 +34,7 @@ func main() {
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
-			Usage:   "output file, directory, or pattern (\"-\" = stdout)",
+			Usage:   "output file, directory, or pattern (\"-\" = stdout, supports %d and templates)",
 			Value:   "-",
 		},
 		&cli.IntFlag{
@@ -104,6 +105,9 @@ func main() {
 		EnableShellCompletion:  true,
 		UseShortOptionHandling: true,
 		Suggest:                true,
+		Commands: []*cli.Command{
+			help.Command(),
+		},
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
@@ -164,11 +168,29 @@ func run(_ context.Context, cmd *cli.Command) error {
 	var outputs []string
 
 	if len(inputs) == 1 {
-		outputs = []string{output}
+		out := output
+
+		if out != "-" {
+			if hasTemplate(out) {
+				out = formatTemplate(out, inputs[0], 0, startNum)
+			} else if hasSeq(out) {
+				out = formatSeq(out, 0, startNum)
+			}
+		}
+
+		outputs = []string{out}
 	} else {
 		switch {
 		case output == "-":
 			return fmt.Errorf("multiple inputs require an output pattern or directory, not '-' ")
+		case hasTemplate(output):
+			outs := make([]string, len(inputs))
+
+			for i := range inputs {
+				outs[i] = formatTemplate(output, inputs[i], i, startNum)
+			}
+
+			outputs = outs
 		case hasSeq(output):
 			outs := make([]string, len(inputs))
 
@@ -196,7 +218,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 			outs := make([]string, len(inputs))
 
 			for i := range inputs {
-				outs[i] = output
+				outs[i] = outDir
 			}
 
 			outputs = outs

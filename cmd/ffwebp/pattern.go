@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 func hasSeq(s string) bool {
@@ -160,4 +161,50 @@ func expandSeq(pat string) ([]string, error) {
 	}
 
 	return result, nil
+}
+
+func hasTemplate(s string) bool {
+	if !strings.Contains(s, "{") {
+		return false
+	}
+	return strings.Contains(s, "{/.}") ||
+		strings.Contains(s, "{/}") ||
+		strings.Contains(s, "{.}") ||
+		strings.Contains(s, "{}") ||
+		strings.Contains(s, "{//}") ||
+		strings.Contains(s, "{#}")
+}
+
+func trimExt(p string) string {
+	return strings.TrimSuffix(p, filepath.Ext(p))
+}
+
+func formatTemplate(pattern, in string, idx, startNum int) string {
+	if hasSeq(pattern) {
+		pattern = formatSeq(pattern, idx, startNum)
+	}
+
+	dir := filepath.Dir(in)
+	base := filepath.Base(in)
+
+	// Special-case "-" (stdin)
+	if in == "-" {
+		dir = "."
+		base = "stdin"
+	}
+
+	fullNoExt := trimExt(in)
+	baseNoExt := trimExt(base)
+	n := idx + startNum - 1
+
+	r := strings.NewReplacer(
+		"{/.}", baseNoExt,
+		"{//}", dir,
+		"{/}", base,
+		"{.}", fullNoExt,
+		"{}", in,
+		"{#}", strconv.Itoa(n),
+	)
+
+	return r.Replace(pattern)
 }

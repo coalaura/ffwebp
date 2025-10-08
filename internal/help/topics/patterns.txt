@@ -1,0 +1,28 @@
+USAGE:
+   ffwebp [global options]
+
+TOPIC:
+   Path patterns for input (-i) and output (-o)
+
+INPUT PATTERNS:
+   - Globs: *, ?, [..] (shell-expanded on Unix; expanded by ffwebp on Windows)
+   - Numeric sequences: %d, %02d (start at --start-number, default 1)
+
+OUTPUT PATTERNS:
+   - %d sequences (same numbering as input/index)
+   - Templates (GNU-parallel style):
+       {}    full input path
+       {.}   input path without last extension
+       {/}   basename (file name)
+       {/.}  basename without extension
+       {//}  directory (no trailing slash)
+       {#}   sequence number (uses --start-number)
+
+EXAMPLES:
+   ffwebp -i "*.png" -o "{/.}.webp"
+   ffwebp -i "frames/%03d.png" -o "out/frame-{#}.png" --start-number 10
+   ffwebp -i "images/**/*.jpg" -o "out/{//}/{/.}.avif"
+
+NOTES:
+   - Output codec is inferred from the final extension unless --codec is set.
+   - With multiple inputs, output must be a pattern or directory.
