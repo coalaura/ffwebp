@@ -72,22 +72,6 @@ jobs:
             goarch: arm64
             zig_target: aarch64-windows-gnu
             flavour: full
-          - goos: darwin
-            goarch: amd64
-            zig_target: x86_64-macos-none
-            flavour: core
-          - goos: darwin
-            goarch: amd64
-            zig_target: x86_64-macos-none
-            flavour: full
-          - goos: darwin
-            goarch: arm64
-            zig_target: aarch64-macos-none
-            flavour: core
-          - goos: darwin
-            goarch: arm64
-            zig_target: aarch64-macos-none
-            flavour: full
       fail-fast: false
 
     steps:
