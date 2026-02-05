@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	method int
-	exact  bool
+	method     int
+	exact      bool
+	autoFilter bool
 )
 
 func init() {
@@ -58,6 +59,12 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 			Value:       false,
 			Destination: &exact,
 		},
+		&cli.BoolFlag{
+			Name:        "webp.autofilter",
+			Usage:       "WebP: enable auto-adjustment of filter strength",
+			Value:       false,
+			Destination: &autoFilter,
+		},
 	)
 }
 
@@ -80,12 +87,13 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	logx.Printf("webp: quality=%d lossless=%t method=%d exact=%t\n", options.Quality, options.Lossless, method, exact)
+	logx.Printf("webp: quality=%d lossless=%t method=%d exact=%t autofilter=%t\n", options.Quality, options.Lossless, method, exact, autoFilter)
 
 	return webp.Encode(writer, img, &webp.Options{
-		Quality:  float32(options.Quality),
-		Lossless: options.Lossless,
-		Method:   method,
-		Exact:    exact,
+		Quality:    float32(options.Quality),
+		Lossless:   options.Lossless,
+		AutoFilter: autoFilter,
+		Method:     method,
+		Exact:      exact,
 	})
 }
