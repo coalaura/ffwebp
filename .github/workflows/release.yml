@@ -21,7 +21,19 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
-    - name: Run integration tests
+    - name: Install Zig
+      uses: mlugg/setup-zig@v1
+      with:
+        version: '0.15.2'
+
+    - name: Run integration tests (native)
+      run: go test -v ./integration
+
+    - name: Run integration tests with CGO (cross-compile check)
+      env:
+        CGO_ENABLED: 1
+        CC: zig cc -target x86_64-linux-gnu
+        CXX: zig c++ -target x86_64-linux-gnu
       run: go test -v ./integration
 
   build:
@@ -30,9 +42,35 @@ jobs:
 
     strategy:
       matrix:
-        goos:   [windows, linux, darwin]
-        goarch: [amd64, arm64]
-        flavour: [core, full]
+        include:
+          # Linux - static with musl
+          - goos: linux
+            goarch: amd64
+            flavour: core
+            zig_target: x86_64-linux-musl
+          - goos: linux
+            goarch: amd64
+            flavour: full
+            zig_target: x86_64-linux-musl
+          - goos: linux
+            goarch: arm64
+            flavour: core
+            zig_target: aarch64-linux-musl
+          - goos: linux
+            goarch: arm64
+            flavour: full
+            zig_target: aarch64-linux-musl
+
+          # Windows - gnu ABI for MinGW-w64
+          - goos: windows
+            goarch: amd64
+            flavour: core
+            zig_target: x86_64-windows-gnu
+          - goos: windows
+            goarch: amd64
+            flavour: full
+            zig_target: x86_64-windows-gnu
+
       fail-fast: false
 
     steps:
@@ -43,6 +81,11 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version-file: 'go.mod'
+
+    - name: Install Zig
+      uses: mlugg/setup-zig@v1
+      with:
+        version: '0.15.2'
 
     - name: Generate Windows resources
       if: matrix.goos == 'windows'
@@ -58,18 +101,67 @@ jobs:
           --file-version "${{ github.ref_name }}" \
           --arch "${{ matrix.goarch }}"
 
-    - name: Build ${{ matrix.goos }}_${{ matrix.goarch }} (${{
-        matrix.flavour }})
+    - name: Build ${{ matrix.goos }}_${{ matrix.goarch }} (${{ matrix.flavour }})
       shell: bash
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
+        CC: zig cc -target ${{ matrix.zig_target }}
+        CXX: zig c++ -target ${{ matrix.zig_target }}
       run: |
         mkdir -p build
         [[ "${{ matrix.goos }}" == "windows" ]] && EXT=".exe" || EXT=""
 
         OUT="build/ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}"
 
-        GOOS=${{ matrix.goos }} \
-        GOARCH=${{ matrix.goarch }} \
-        CGO_ENABLED=0 \
+        # Static linking flags for fully static binaries
+        LDFLAGS="-s -w -X 'main.Version=${{ github.ref_name }}'"
+
+        # Add static linking for Linux musl targets
+        if [[ "${{ matrix.zig_target }}" == *"-musl"* ]]; then
+          LDFLAGS="$LDFLAGS -linkmode external -extldflags '-static'"
+        fi
+
+        go build \
+          -trimpath \
+          -buildvcs=false \
+          -ldflags "$LDFLAGS" \
+          -tags "${{ matrix.flavour }}" \
+          -o "$OUT" ./cmd/ffwebp
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_${{ matrix.goos }}_${{ matrix.goarch }}
+        path: build/*
+
+  build-darwin-native:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+        flavour: [core, full]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Build darwin_${{ matrix.goarch }} (${{ matrix.flavour }})
+      env:
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
+      run: |
+        mkdir -p build
+        OUT="build/ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_darwin_${{ matrix.goarch }}"
+
         go build \
           -trimpath \
           -buildvcs=false \
@@ -80,11 +172,11 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_${{ matrix.goos }}_${{ matrix.goarch }}
+        name: ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_darwin_${{ matrix.goarch }}
         path: build/*
 
   release:
-    needs: build
+    needs: [build, build-darwin-native]
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -94,6 +186,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: ./build
+        merge-multiple: true
 
     - name: Create GitHub release
       uses: softprops/action-gh-release@v2
