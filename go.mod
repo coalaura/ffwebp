@@ -10,17 +10,17 @@ require (
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.4.4
 	github.com/gen2brain/heic v0.4.5
+	github.com/gen2brain/jpegn v0.3.1
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
+	github.com/kanrichan/resvg-go v0.0.1
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
 	github.com/mdouchement/dng v0.0.0-20230730131840-4066c9106942
 	github.com/oov/psd v0.0.0-20220121172623-5db5eafcecbb
 	github.com/samuel/go-pcx v0.0.0-20210515040514-6a5ce4d132f7
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0
 	github.com/spakin/netpbm v1.3.2
-	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
-	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/image v0.30.0
 	gotest.tools/v3 v3.5.2
@@ -32,6 +32,4 @@ require (
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
 )
