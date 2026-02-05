@@ -79,6 +79,15 @@ func main() {
 			Usage: "number of worker threads (0=auto)",
 			Value: 0,
 		},
+		&cli.IntFlag{
+			Name:  "frame",
+			Usage: "extract specific frame from animation (0-based index). When set, forces static output",
+			Value: -1,
+		},
+		&cli.DurationFlag{
+			Name:  "time",
+			Usage: "extract frame at specific time (e.g., '2s', '500ms', '1.5s'). When set, forces static output",
+		},
 		&cli.BoolFlag{
 			Name:    "silent",
 			Aliases: []string{"s"},
@@ -387,26 +396,61 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	animDecoder, hasAnimDecoder := sniffed.Codec.(codec.AnimatedDecoder)
 	animEncoder, hasAnimEncoder := oCodec.(codec.AnimatedEncoder)
 
+	frameIdx := cmd.Int("frame")
+	timeMs := int(cmd.Duration("time").Milliseconds())
+
+	wantsSpecificFrame := frameIdx >= 0 || cmd.IsSet("time")
+
 	var (
 		anim *codec.Animation
 		img  image.Image
 	)
 
-	if hasAnimDecoder && hasAnimEncoder {
+	shouldDecodeAnimation := hasAnimDecoder && (wantsSpecificFrame || hasAnimEncoder)
+
+	if shouldDecodeAnimation {
 		anim, err = animDecoder.DecodeAll(reader)
 		if err != nil {
 			return err
-		}
-
-		if anim == nil {
+		} else if anim == nil {
 			return errors.New("decoded animation is nil")
-		}
-
-		if len(anim.Frames) == 0 {
+		} else if len(anim.Frames) == 0 {
 			return errors.New("decoded animation has no frames")
 		}
 
-		if len(anim.Frames) > 1 {
+		if frameIdx >= 0 {
+			if frameIdx >= len(anim.Frames) {
+				return fmt.Errorf("frame index %d out of range (animation has %d frames)", frameIdx, len(anim.Frames))
+			}
+
+			img = anim.Frames[frameIdx]
+
+			logx.Fprintf(logger, "selected frame %d from %d frame animation\n", frameIdx, len(anim.Frames))
+		} else if cmd.IsSet("time") {
+			var (
+				cumulativeTime int
+				selectedIdx    int
+			)
+
+			for i, delay := range anim.Delays {
+				if cumulativeTime+delay > timeMs {
+					selectedIdx = i
+
+					break
+				}
+
+				cumulativeTime += delay
+				selectedIdx = i
+			}
+
+			img = anim.Frames[selectedIdx]
+
+			logx.Fprintf(logger, "selected frame %d at ~%dms from %d frame animation\n", selectedIdx, cumulativeTime, len(anim.Frames))
+		} else if !hasAnimEncoder {
+			img = anim.Frames[0]
+
+			logx.Fprintf(logger, "output codec doesn't support animation, using first frame of %d\n", len(anim.Frames))
+		} else if len(anim.Frames) > 1 {
 			first := anim.Frames[0]
 
 			logx.Fprintf(logger, "decoded animation: %d frames %dx%d %s in %s\n", len(anim.Frames), first.Bounds().Dx(), first.Bounds().Dy(), colorModel(first), time.Since(t0).Truncate(time.Millisecond))
@@ -452,7 +496,7 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 			return nil
 		}
 
-		if len(anim.Frames) == 1 {
+		if img == nil && len(anim.Frames) == 1 {
 			img = anim.Frames[0]
 		}
 	}
