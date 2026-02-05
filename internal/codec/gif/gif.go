@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/gif"
 	"io"
 
@@ -72,6 +73,52 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
 	return gif.Decode(reader)
+}
+
+func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
+	anim, err := gif.DecodeAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	frames := make([]image.Image, len(anim.Image))
+
+	for i, frame := range anim.Image {
+		frames[i] = frame
+	}
+
+	delays := make([]int, len(anim.Delay))
+
+	for i, delay := range anim.Delay {
+		if delay < 0 {
+			delay = 0
+		}
+
+		delays[i] = delay * 10
+	}
+
+	if len(delays) != len(frames) {
+		fixed := make([]int, len(frames))
+
+		copy(fixed, delays)
+
+		delays = fixed
+	}
+
+	background := color.RGBA{}
+
+	if palette, ok := anim.Config.ColorModel.(color.Palette); ok {
+		if int(anim.BackgroundIndex) < len(palette) {
+			background = color.RGBAModel.Convert(palette[anim.BackgroundIndex]).(color.RGBA)
+		}
+	}
+
+	return &codec.Animation{
+		Frames:     frames,
+		Delays:     delays,
+		LoopCount:  anim.LoopCount,
+		Background: background,
+	}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {

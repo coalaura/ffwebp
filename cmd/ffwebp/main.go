@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"image"
 	"io"
 	"os"
 	"path/filepath"
@@ -382,9 +384,84 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 	t0 := time.Now()
 
-	img, err := sniffed.Codec.Decode(reader)
-	if err != nil {
-		return err
+	animDecoder, hasAnimDecoder := sniffed.Codec.(codec.AnimatedDecoder)
+	animEncoder, hasAnimEncoder := oCodec.(codec.AnimatedEncoder)
+
+	var (
+		anim *codec.Animation
+		img  image.Image
+	)
+
+	if hasAnimDecoder && hasAnimEncoder {
+		anim, err = animDecoder.DecodeAll(reader)
+		if err != nil {
+			return err
+		}
+
+		if anim == nil {
+			return errors.New("decoded animation is nil")
+		}
+
+		if len(anim.Frames) == 0 {
+			return errors.New("decoded animation has no frames")
+		}
+
+		if len(anim.Frames) > 1 {
+			first := anim.Frames[0]
+
+			logx.Fprintf(logger, "decoded animation: %d frames %dx%d %s in %s\n", len(anim.Frames), first.Bounds().Dx(), first.Bounds().Dy(), colorModel(first), time.Since(t0).Truncate(time.Millisecond))
+
+			if thumbnail := cmd.Uint("thumbnail"); thumbnail > 0 {
+				t2 := time.Now()
+
+				for i, frame := range anim.Frames {
+					anim.Frames[i] = resize.Thumbnail(thumbnail, thumbnail, frame)
+				}
+
+				first = anim.Frames[0]
+
+				logx.Fprintf(logger, "resized animation: %dx%d in %s\n", first.Bounds().Dx(), first.Bounds().Dy(), time.Since(t2).Truncate(time.Millisecond))
+			}
+
+			t1 := time.Now()
+
+			var n int
+
+			for i, frame := range anim.Frames {
+				frame, n, err = effects.ApplyAll(frame)
+				if err != nil {
+					return err
+				}
+
+				anim.Frames[i] = frame
+			}
+
+			if n > 0 {
+				logx.Fprintf(logger, "applied %d effect(s) to %d frame(s) in %s\n", n, len(anim.Frames), time.Since(t1).Truncate(time.Millisecond))
+			}
+
+			t2 := time.Now()
+
+			err := animEncoder.EncodeAll(writer, anim, localOpts)
+			if err != nil {
+				return err
+			}
+
+			logx.Fprintf(logger, "encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
+
+			return nil
+		}
+
+		if len(anim.Frames) == 1 {
+			img = anim.Frames[0]
+		}
+	}
+
+	if img == nil {
+		img, err = sniffed.Codec.Decode(reader)
+		if err != nil {
+			return err
+		}
 	}
 
 	logx.Fprintf(logger, "decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))

@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/anthonynsimon/bild v0.14.0
-	github.com/coalaura/webp v1.6.1
+	github.com/coalaura/webp v1.6.2-0.20260205151359-878620074125
 	github.com/coalaura/xbm v0.0.4
 	github.com/coalaura/xpm v0.0.3
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a

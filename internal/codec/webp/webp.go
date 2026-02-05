@@ -97,3 +97,32 @@ func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error
 		Exact:      exact,
 	})
 }
+
+func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Common) error {
+	var frames int
+
+	if anim != nil {
+		frames = len(anim.Frames)
+	}
+
+	logx.Printf("webp: frames=%d quality=%d lossless=%t method=%d exact=%t autofilter=%t\n", frames, options.Quality, options.Lossless, method, exact, autoFilter)
+
+	if anim == nil {
+		return fmt.Errorf("webp: animation is nil")
+	}
+
+	webpAnim := &webp.Animation{
+		Image:      anim.Frames,
+		Delay:      anim.Delays,
+		LoopCount:  anim.LoopCount,
+		Background: anim.Background,
+	}
+
+	return webp.EncodeAll(writer, webpAnim, &webp.Options{
+		Quality:    float32(options.Quality),
+		Lossless:   options.Lossless,
+		AutoFilter: autoFilter,
+		Method:     method,
+		Exact:      exact,
+	})
+}
