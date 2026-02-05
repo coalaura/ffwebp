@@ -4,13 +4,13 @@ go 1.25.0
 
 require (
 	github.com/anthonynsimon/bild v0.14.0
+	github.com/coalaura/webp v1.6.1
 	github.com/coalaura/xbm v0.0.4
 	github.com/coalaura/xpm v0.0.3
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.4.4
 	github.com/gen2brain/heic v0.4.5
 	github.com/gen2brain/jpegxl v0.4.5
-	github.com/gen2brain/webp v0.5.5
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef

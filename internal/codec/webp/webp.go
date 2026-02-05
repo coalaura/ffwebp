@@ -6,7 +6,7 @@ import (
 	"image"
 	"io"
 
-	"github.com/gen2brain/webp"
+	"github.com/coalaura/webp"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
@@ -82,8 +82,8 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
 	logx.Printf("webp: quality=%d lossless=%t method=%d exact=%t\n", options.Quality, options.Lossless, method, exact)
 
-	return webp.Encode(writer, img, webp.Options{
-		Quality:  options.Quality,
+	return webp.Encode(writer, img, &webp.Options{
+		Quality:  float32(options.Quality),
 		Lossless: options.Lossless,
 		Method:   method,
 		Exact:    exact,

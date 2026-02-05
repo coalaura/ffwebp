@@ -1,5 +1,7 @@
 github.com/anthonynsimon/bild v0.14.0 h1:IFRkmKdNdqmexXHfEU7rPlAmdUZ8BDZEGtGHDnGWync=
 github.com/anthonynsimon/bild v0.14.0/go.mod h1:hcvEAyBjTW69qkKJTfpcDQ83sSZHxwOunsseDfeQhUs=
+github.com/coalaura/webp v1.6.1 h1:H34oXNjT7C0J5PsigiAca+sd1vqrOgqzINiRcdQLRmU=
+github.com/coalaura/webp v1.6.1/go.mod h1:C1tJQhbAcl5l6rxH58FQEBSg4KaNBIFFJIb4aX+xv00=
 github.com/coalaura/xbm v0.0.4 h1:B8TKdo44fogAAnpWKSeABqUtspLpnwVlU4lwNYJKXEE=
 github.com/coalaura/xbm v0.0.4/go.mod h1:FEAK5clZSXwDFfQbpdPguUclWBKdU7uDvwPAuzVkcPc=
 github.com/coalaura/xpm v0.0.3 h1:YFcyhtQKRlLybjn0cOHW3rm3ECowdY5bjF4FEdioHZU=
@@ -16,8 +18,6 @@ github.com/gen2brain/heic v0.4.5 h1:Cq3hPu6wwlTJNv2t48ro3oWje54h82Q5pALeCBNgaSk=
 github.com/gen2brain/heic v0.4.5/go.mod h1:ECnpqbqLu0qSje4KSNWUUDK47UPXPzl80T27GWGEL5I=
 github.com/gen2brain/jpegxl v0.4.5 h1:TWpVEn5xkIfsswzkjHBArd0Cc9AE0tbjBSoa0jDsrbo=
 github.com/gen2brain/jpegxl v0.4.5/go.mod h1:4kWYJ18xCEuO2vzocYdGpeqNJ990/Gjy3uLMg5TBN6I=
-github.com/gen2brain/webp v0.5.5 h1:MvQR75yIPU/9nSqYT5h13k4URaJK3gf9tgz/ksRbyEg=
-github.com/gen2brain/webp v0.5.5/go.mod h1:xOSMzp4aROt2KFW++9qcK/RBTOVC2S9tJG66ip/9Oc0=
 github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97 h1:DdKf/zTPiJP9GyxSJPRW3UpsKjIXrpEQOOc+N2mXbuE=
 github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97/go.mod h1:1YB2Y6fvddxaSsiTvGp6+WWg17jt1MKhTwJWnGD1zN4=
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=

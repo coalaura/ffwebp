@@ -1,6 +1,6 @@
 # FFWebP
 
-FFWebP is a small, single-binary CLI for converting images between formats, think "ffmpeg for images". It auto-detects the input format, lets you pick the output format by file extension or `--codec`, supports stdin/stdout, thumbnails, and rich per-codec options.
+FFWebP is a small, single-binary CLI for converting images between formats, think "ffmpeg for images". It auto-detects the input format, lets you pick the output format by file extension or `--codec`, supports stdin/stdout, thumbnails and rich per-codec options.
 
 ## Features
 
@@ -18,7 +18,7 @@ FFWebP is a small, single-binary CLI for converting images between formats, thin
 You can bootstrap **ffwebp-full** with a single command. This script will detect your OS and CPU (`amd64`/`arm64`), download the correct binary and install it to `/usr/local/bin/ffwebp`.
 
 ```bash
-curl -sL https://src.w2k.sh/ffwebp/install.sh | sh
+curl -sL https://src.ws2.sh/ffwebp/install.sh | sh
 ```
 
 ### Build from source (optional)
