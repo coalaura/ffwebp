@@ -62,32 +62,35 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 }
 
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
-    // Recognize classic TIFF (II*\0 or MM\0*) and BigTIFF (signature 43)
-    buf := make([]byte, 16)
-    if _, err := reader.ReadAt(buf, 0); err != nil && err != io.EOF {
-        return 0, nil, err
-    }
+	// Recognize classic TIFF (II*\0 or MM\0*) and BigTIFF (signature 43)
+	buf := make([]byte, 16)
 
-    if len(buf) < 8 {
-        return 0, nil, nil
-    }
+	n, err := reader.ReadAt(buf, 0)
+	if err != nil && err != io.EOF {
+		return 0, nil, err
+	}
 
-    if bytes.Equal(buf[0:4], []byte{0x49, 0x49, 0x2A, 0x00}) ||
-        bytes.Equal(buf[0:4], []byte{0x4D, 0x4D, 0x00, 0x2A}) {
-        return 100, buf[:8], nil
-    }
+	buf = buf[:n]
 
-    // BigTIFF: byte order + 43 marker, bytesize=8
-    isLE := bytes.Equal(buf[0:2], []byte{'I', 'I'})
-    isBE := bytes.Equal(buf[0:2], []byte{'M', 'M'})
-    if isLE || isBE {
-        if (isLE && buf[2] == 0x2B && buf[3] == 0x00 && buf[4] == 0x08 && buf[5] == 0x00) ||
-            (isBE && buf[2] == 0x00 && buf[3] == 0x2B && buf[4] == 0x00 && buf[5] == 0x08) {
-            return 100, buf[:8], nil
-        }
-    }
+	if len(buf) < 8 {
+		return 0, nil, nil
+	}
 
-    return 0, nil, nil
+	if bytes.Equal(buf[0:4], []byte{0x49, 0x49, 0x2A, 0x00}) || bytes.Equal(buf[0:4], []byte{0x4D, 0x4D, 0x00, 0x2A}) {
+		return 100, buf[:8], nil
+	}
+
+	// BigTIFF: byte order + 43 marker, bytesize=8
+	isLE := bytes.Equal(buf[0:2], []byte{'I', 'I'})
+	isBE := bytes.Equal(buf[0:2], []byte{'M', 'M'})
+
+	if isLE || isBE {
+		if (isLE && buf[2] == 0x2B && buf[3] == 0x00 && buf[4] == 0x08 && buf[5] == 0x00) || (isBE && buf[2] == 0x00 && buf[3] == 0x2B && buf[4] == 0x00 && buf[5] == 0x08) {
+			return 100, buf[:8], nil
+		}
+	}
+
+	return 0, nil, nil
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {

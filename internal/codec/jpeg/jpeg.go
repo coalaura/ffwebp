@@ -9,6 +9,7 @@ import (
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/gen2brain/jpegn"
 	"github.com/urfave/cli/v3"
 )
 
@@ -39,9 +40,12 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	buf := make([]byte, 3)
 
-	if _, err := reader.ReadAt(buf, 0); err != nil {
+	n, err := reader.ReadAt(buf, 0)
+	if err != nil {
 		return 0, nil, err
 	}
+
+	buf = buf[:n]
 
 	if bytes.Equal(buf, magic) {
 		return 100, magic, nil
@@ -51,7 +55,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
-	return jpeg.Decode(reader)
+	return jpegn.Decode(reader)
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
