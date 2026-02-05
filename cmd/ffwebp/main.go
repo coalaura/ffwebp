@@ -17,7 +17,7 @@ import (
 	"github.com/coalaura/ffwebp/internal/help"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
-	"github.com/nfnt/resize"
+	"github.com/coalaura/ffwebp/internal/resize"
 	"github.com/urfave/cli/v3"
 )
 
@@ -392,7 +392,7 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	if thumbnail := cmd.Uint("thumbnail"); thumbnail > 0 {
 		t2 := time.Now()
 
-		img = resize.Thumbnail(thumbnail, thumbnail, img, resize.Lanczos3)
+		img = resize.Thumbnail(thumbnail, thumbnail, img)
 
 		logx.Fprintf(logger, "resized image: %dx%d in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), time.Since(t2).Truncate(time.Millisecond))
 	}
