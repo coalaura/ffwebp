@@ -206,13 +206,13 @@ func calculateSize(origW, origH, targetW, targetH int) (int, int) {
 }
 
 func applyBackground(img image.Image, bg string) image.Image {
-	bounds := img.Bounds()
-	rgba := image.NewRGBA(bounds)
-
 	bgColor := parseColor(bg)
 	if bgColor == nil {
 		return img
 	}
+
+	bounds := img.Bounds()
+	rgba := image.NewRGBA(bounds)
 
 	draw.Draw(rgba, rgba.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
 
