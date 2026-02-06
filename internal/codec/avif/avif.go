@@ -6,7 +6,7 @@ import (
 	"image"
 	"io"
 
-	"github.com/vegidio/avif-go"
+	"github.com/gen2brain/avif"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
@@ -66,6 +66,19 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 				return nil
 			},
 		},
+		&cli.IntFlag{
+			Name:        "avif.chroma",
+			Usage:       "AVIF: chroma subsampling (444=best, 422, 420=smallest)",
+			Value:       444,
+			Destination: &chroma,
+			Validator: func(v int) error {
+				if v != 444 && v != 422 && v != 420 {
+					return fmt.Errorf("invalid avif.chroma: %d", v)
+				}
+
+				return nil
+			},
+		},
 	)
 }
 
@@ -88,11 +101,25 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	logx.Printf("avif: quality=%d quality-alpha=%d speed=%d\n", options.Quality, qualityA, speed)
+	logx.Printf("avif: quality=%d quality-alpha=%d speed=%d chroma=%d\n", options.Quality, qualityA, speed, chroma)
 
-	return avif.Encode(writer, img, &avif.Options{
-		ColorQuality: options.Quality,
-		AlphaQuality: qualityA,
-		Speed:        speed,
+	return avif.Encode(writer, img, avif.Options{
+		Quality:           options.Quality,
+		QualityAlpha:      qualityA,
+		Speed:             speed,
+		ChromaSubsampling: chromaSubsampling(chroma),
 	})
+}
+
+func chromaSubsampling(c int) image.YCbCrSubsampleRatio {
+	switch c {
+	case 444:
+		return image.YCbCrSubsampleRatio444
+	case 422:
+		return image.YCbCrSubsampleRatio422
+	case 420:
+		return image.YCbCrSubsampleRatio420
+	default:
+		return image.YCbCrSubsampleRatio444
+	}
 }
