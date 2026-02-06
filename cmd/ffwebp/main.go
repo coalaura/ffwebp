@@ -100,6 +100,10 @@ func main() {
 				return nil
 			},
 		},
+		&cli.BoolFlag{
+			Name:  "skip-existing",
+			Usage: "skip files that already exist at the output path",
+		},
 	}
 
 	flags = codec.Flags(flags)
@@ -373,6 +377,14 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	}
 
 	if output != "-" {
+		if cmd.Bool("skip-existing") {
+			if _, err := os.Stat(output); err == nil {
+				logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
+
+				return nil
+			}
+		}
+
 		logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
 
 		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
