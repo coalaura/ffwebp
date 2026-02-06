@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/draw"
 	"image/gif"
 	"io"
 
@@ -127,4 +129,108 @@ func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error
 	return gif.Encode(writer, img, &gif.Options{
 		NumColors: numColors,
 	})
+}
+
+func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Common) error {
+	var frames int
+
+	if anim != nil {
+		frames = len(anim.Frames)
+	}
+
+	logx.Printf("gif: frames=%d colors=%d\n", frames, numColors)
+
+	if anim == nil {
+		return fmt.Errorf("gif: animation is nil")
+	}
+
+	if len(anim.Frames) == 0 {
+		return fmt.Errorf("gif: animation has no frames")
+	}
+
+	pal := color.Palette(palette.Plan9)
+
+	if numColors > 0 && numColors < len(pal) {
+		pal = pal[:numColors]
+	}
+
+	framesOut := make([]*image.Paletted, len(anim.Frames))
+
+	for i, frame := range anim.Frames {
+		if frame == nil {
+			return fmt.Errorf("gif: frame %d is nil", i)
+		}
+
+		framesOut[i] = toPaletted(frame, pal)
+	}
+
+	delays := make([]int, len(anim.Delays))
+
+	copy(delays, anim.Delays)
+
+	if len(delays) != len(framesOut) {
+		fixed := make([]int, len(framesOut))
+
+		copy(fixed, delays)
+
+		delays = fixed
+	}
+
+	for i, delay := range delays {
+		if delay < 0 {
+			delay = 0
+		}
+
+		delays[i] = (delay + 5) / 10
+	}
+
+	bounds := framesOut[0].Bounds()
+
+	backgroundIndex := uint8(0)
+
+	if len(pal) > 0 {
+		backgroundIndex = uint8(pal.Index(anim.Background))
+	}
+
+	gifAnim := &gif.GIF{
+		Image:           framesOut,
+		Delay:           delays,
+		LoopCount:       anim.LoopCount,
+		BackgroundIndex: backgroundIndex,
+		Config: image.Config{
+			ColorModel: pal,
+			Width:      bounds.Dx(),
+			Height:     bounds.Dy(),
+		},
+	}
+
+	return gif.EncodeAll(writer, gifAnim)
+}
+
+func toPaletted(img image.Image, pal color.Palette) *image.Paletted {
+	bounds := img.Bounds()
+
+	if paletted, ok := img.(*image.Paletted); ok && samePalette(paletted.Palette, pal) {
+		return paletted
+	}
+
+	out := image.NewPaletted(bounds, pal)
+
+	draw.FloydSteinberg.Draw(out, bounds, img, bounds.Min)
+
+	return out
+}
+
+func samePalette(a, b color.Palette) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
 }

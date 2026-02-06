@@ -399,16 +399,12 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	frameIdx := cmd.Int("frame")
 	timeMs := int(cmd.Duration("time").Milliseconds())
 
-	wantsSpecificFrame := frameIdx >= 0 || cmd.IsSet("time")
-
 	var (
 		anim *codec.Animation
 		img  image.Image
 	)
 
-	shouldDecodeAnimation := hasAnimDecoder && (wantsSpecificFrame || hasAnimEncoder)
-
-	if shouldDecodeAnimation {
+	if hasAnimDecoder {
 		anim, err = animDecoder.DecodeAll(reader)
 		if err != nil {
 			return err

@@ -83,7 +83,29 @@ func (impl) Sniff(rd io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
-	return webp.Decode(reader)
+	return webp.Decode(reader, &webp.DecodeOptions{
+		UseThreads: true,
+	})
+}
+
+func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
+	anim, err := webp.DecodeAll(reader, &webp.DecodeOptions{
+		UseThreads: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if anim == nil {
+		return nil, fmt.Errorf("webp: decoded animation is nil")
+	}
+
+	return &codec.Animation{
+		Frames:     anim.Image,
+		Delays:     anim.Delay,
+		LoopCount:  anim.LoopCount,
+		Background: anim.Background,
+	}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
@@ -124,5 +146,6 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		AutoFilter: autoFilter,
 		Method:     method,
 		Exact:      exact,
+		UseThreads: true,
 	})
 }
