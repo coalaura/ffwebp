@@ -488,6 +488,10 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 				anim.Frames[i] = frame
 			}
 
+			bounds := anim.Frames[0].Bounds()
+
+			anim.Frames = codec.NormalizeAnimationFrames(anim.Frames, bounds.Dx(), bounds.Dy())
+
 			if n > 0 {
 				logx.Fprintf(logger, "applied %d effect(s) to %d frame(s) in %s\n", n, len(anim.Frames), time.Since(t1).Truncate(time.Millisecond))
 			}

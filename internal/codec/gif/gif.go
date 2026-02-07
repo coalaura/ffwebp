@@ -78,20 +78,70 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
-	anim, err := gif.DecodeAll(reader)
+	g, err := gif.DecodeAll(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	frames := make([]image.Image, len(anim.Image))
-
-	for i, frame := range anim.Image {
-		frames[i] = frame
+	if len(g.Image) == 0 {
+		return nil, fmt.Errorf("gif: no frames")
 	}
 
-	delays := make([]int, len(anim.Delay))
+	background := color.RGBA{0, 0, 0, 0}
 
-	for i, delay := range anim.Delay {
+	if g.Config.ColorModel != nil {
+		if p, ok := g.Config.ColorModel.(color.Palette); ok && int(g.BackgroundIndex) < len(p) {
+			background = color.RGBAModel.Convert(p[g.BackgroundIndex]).(color.RGBA)
+		}
+	}
+
+	bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
+	canvas := image.NewRGBA(bounds)
+
+	draw.Draw(canvas, bounds, &image.Uniform{background}, image.Point{}, draw.Src)
+
+	frames := make([]image.Image, len(g.Image))
+
+	var prevCanvas *image.RGBA // For disposal method 3 (restore to previous)
+
+	for i, srcFrame := range g.Image {
+		if i < len(g.Disposal) && g.Disposal[i] == 3 {
+			prevCanvas = image.NewRGBA(bounds)
+
+			draw.Draw(prevCanvas, bounds, canvas, bounds.Min, draw.Src)
+		}
+
+		draw.Draw(canvas, srcFrame.Bounds(), srcFrame, srcFrame.Bounds().Min, draw.Over)
+
+		frameCopy := image.NewRGBA(bounds)
+
+		draw.Draw(frameCopy, bounds, canvas, bounds.Min, draw.Src)
+
+		frames[i] = frameCopy
+
+		if i < len(g.Image)-1 {
+			disposal := byte(0)
+
+			if i < len(g.Disposal) {
+				disposal = g.Disposal[i]
+			}
+
+			switch disposal {
+			case 0, 1: // No disposal specified or do not dispose - keep canvas as is
+				// Do nothing
+			case 2: // Restore to background color - clear frame area to background
+				draw.Draw(canvas, srcFrame.Bounds(), &image.Uniform{background}, image.Point{}, draw.Src)
+			case 3: // Restore to previous - restore canvas to state before this frame
+				if prevCanvas != nil {
+					draw.Draw(canvas, bounds, prevCanvas, bounds.Min, draw.Src)
+				}
+			}
+		}
+	}
+
+	delays := make([]int, len(g.Delay))
+
+	for i, delay := range g.Delay {
 		if delay < 0 {
 			delay = 0
 		}
@@ -107,18 +157,10 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		delays = fixed
 	}
 
-	background := color.RGBA{}
-
-	if palette, ok := anim.Config.ColorModel.(color.Palette); ok {
-		if int(anim.BackgroundIndex) < len(palette) {
-			background = color.RGBAModel.Convert(palette[anim.BackgroundIndex]).(color.RGBA)
-		}
-	}
-
 	return &codec.Animation{
 		Frames:     frames,
 		Delays:     delays,
-		LoopCount:  anim.LoopCount,
+		LoopCount:  g.LoopCount,
 		Background: background,
 	}, nil
 }

@@ -54,3 +54,33 @@ func Thumbnail(maxWidth, maxHeight uint, img image.Image) image.Image {
 
 	return dst
 }
+
+func Resize(width, height int, img image.Image) image.Image {
+	if width == 0 && height == 0 {
+		return img
+	}
+
+	bounds := img.Bounds()
+	srcW, srcH := bounds.Dx(), bounds.Dy()
+
+	dstW, dstH := width, height
+
+	if width == 0 {
+		dstW = srcW * dstH / srcH
+	} else if height == 0 {
+		dstH = srcH * dstW / srcW
+	}
+
+	if dstW < 1 {
+		dstW = 1
+	}
+	if dstH < 1 {
+		dstH = 1
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+
+	return dst
+}
