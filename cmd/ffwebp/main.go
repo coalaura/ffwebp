@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,10 @@ func main() {
 			Name:    "thumbnail",
 			Aliases: []string{"t"},
 			Usage:   "create a thumbnail no wider/taller than the specified size",
+		},
+		&cli.StringFlag{
+			Name:  "split",
+			Usage: "split output into XxY tiles (example: 3x2). Order: left->right, top->bottom",
 		},
 		&cli.IntFlag{
 			Name:  "threads",
@@ -357,6 +362,15 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		}
 	}
 
+	splitX, splitY, doSplit, err := parseSplit(cmd.String("split"))
+	if err != nil {
+		return err
+	}
+
+	if doSplit && output == "-" {
+		return errors.New("--split requires file output (not stdout)")
+	}
+
 	oCodec, oExt, err := codec.Detect(output, cmd.String("codec"))
 	if err != nil {
 		return err
@@ -376,31 +390,33 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		}
 	}
 
-	if output != "-" {
-		if cmd.Bool("skip-existing") {
-			if _, err := os.Stat(output); err == nil {
-				logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
+	if !doSplit {
+		if output != "-" {
+			if cmd.Bool("skip-existing") {
+				if _, err := os.Stat(output); err == nil {
+					logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
 
-				return nil
+					return nil
+				}
 			}
+
+			logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
+
+			if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+				return err
+			}
+
+			file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				return err
+			}
+
+			defer file.Close()
+
+			writer = &countWriter{w: file}
+		} else {
+			logx.Fprintf(logger, "writing output to <stdout>\n")
 		}
-
-		logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
-
-		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-			return err
-		}
-
-		file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			return err
-		}
-
-		defer file.Close()
-
-		writer = &countWriter{w: file}
-	} else {
-		logx.Fprintf(logger, "writing output to <stdout>\n")
 	}
 
 	t0 := time.Now()
@@ -454,10 +470,14 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 			img = anim.Frames[selectedIdx]
 
 			logx.Fprintf(logger, "selected frame %d at ~%dms from %d frame animation\n", selectedIdx, cumulativeTime, len(anim.Frames))
-		} else if !hasAnimEncoder {
+		} else if !hasAnimEncoder || doSplit {
 			img = anim.Frames[0]
 
-			logx.Fprintf(logger, "output codec doesn't support animation, using first frame of %d\n", len(anim.Frames))
+			if doSplit {
+				logx.Fprintf(logger, "split enabled, using first frame of %d\n", len(anim.Frames))
+			} else {
+				logx.Fprintf(logger, "output codec doesn't support animation, using first frame of %d\n", len(anim.Frames))
+			}
 		} else if len(anim.Frames) > 1 {
 			first := anim.Frames[0]
 
@@ -543,6 +563,52 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 	t2 := time.Now()
 
+	if doSplit {
+		tiles, err := resize.Split(img, splitX, splitY)
+		if err != nil {
+			return err
+		}
+
+		for i, tile := range tiles {
+			row := i / splitX
+			col := i % splitX
+
+			var tileOut string
+
+			if hasTileTemplate(tileOut) {
+				tileOut = formatTileTemplate(tileOut, row, col, i)
+			} else {
+				tileOut = splitOutputPath(output, row, col)
+			}
+
+			if err := os.MkdirAll(filepath.Dir(tileOut), 0755); err != nil {
+				return err
+			}
+
+			file, err := os.OpenFile(tileOut, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				return err
+			}
+
+			cw := &countWriter{w: file}
+
+			encErr := oCodec.Encode(cw, tile, localOpts)
+
+			closeErr := file.Close()
+			if encErr != nil {
+				return encErr
+			}
+
+			if closeErr != nil {
+				return closeErr
+			}
+
+			logx.Fprintf(logger, "wrote tile r=%d c=%d -> %q\n", row, col, filepath.ToSlash(tileOut))
+		}
+
+		return nil
+	}
+
 	if err := oCodec.Encode(writer, img, localOpts); err != nil {
 		return err
 	}
@@ -550,4 +616,43 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	logx.Fprintf(logger, "encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
 
 	return nil
+}
+
+func parseSplit(v string) (x, y int, ok bool, err error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, 0, false, nil
+	}
+
+	for _, sep := range []string{"x", "X", ":", ","} {
+		parts := strings.Split(v, sep)
+		if len(parts) != 2 {
+			continue
+		}
+
+		x, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return 0, 0, false, fmt.Errorf("invalid split x value: %q", parts[0])
+		}
+
+		y, err = strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, 0, false, fmt.Errorf("invalid split y value: %q", parts[1])
+		}
+
+		if x <= 0 || y <= 0 {
+			return 0, 0, false, fmt.Errorf("split values must be > 0 (got %dx%d)", x, y)
+		}
+
+		return x, y, true, nil
+	}
+
+	return 0, 0, false, fmt.Errorf("invalid --split format %q (expected XxY, e.g. 3x2)", v)
+}
+
+func splitOutputPath(base string, row, col int) string {
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+
+	return fmt.Sprintf("%s_r%d_c%d%s", stem, row, col, ext)
 }

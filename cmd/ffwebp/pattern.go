@@ -208,3 +208,17 @@ func formatTemplate(pattern, in string, idx, startNum int) string {
 
 	return r.Replace(pattern)
 }
+
+func hasTileTemplate(s string) bool {
+	return strings.Contains(s, "{r}") || strings.Contains(s, "{c}") || strings.Contains(s, "{i}")
+}
+
+func formatTileTemplate(pattern string, row, col, idx int) string {
+	r := strings.NewReplacer(
+		"{r}", strconv.Itoa(row),
+		"{c}", strconv.Itoa(col),
+		"{i}", strconv.Itoa(idx),
+	)
+
+	return r.Replace(pattern)
+}
