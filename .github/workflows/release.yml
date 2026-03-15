@@ -16,6 +16,11 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
+    - name: Install Linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
+
     - name: Set up Zig
       uses: goto-bus-stop/setup-zig@v2
       with:
@@ -77,6 +82,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Install Linux dependencies
+      if: matrix.goos == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
 
     - name: Set up Zig
       uses: goto-bus-stop/setup-zig@v2
