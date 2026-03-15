@@ -1,10 +1,10 @@
+//go:build play
+
 package play
 
 import (
 	"errors"
 	"image"
-	"os"
-	"runtime"
 	"time"
 
 	"github.com/coalaura/ffwebp/internal/codec"
@@ -94,19 +94,7 @@ func getInitialSize(dx, dy int) (int, int) {
 	return w, h
 }
 
-func checkHeadless() error {
-	if runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ":99.0" {
-		return errors.New("cannot use --play on a headless server (no X11/Wayland display found)")
-
-	}
-	return nil
-}
-
 func PlayImage(img image.Image) error {
-	if err := checkHeadless(); err != nil {
-		return err
-	}
-
 	bounds := img.Bounds()
 
 	w, h := getInitialSize(bounds.Dx(), bounds.Dy())
@@ -128,10 +116,6 @@ func PlayImage(img image.Image) error {
 }
 
 func PlayAnimation(anim *codec.Animation) error {
-	if err := checkHeadless(); err != nil {
-		return err
-	}
-
 	if anim == nil || len(anim.Frames) == 0 {
 		return errors.New("no frames to play")
 	}

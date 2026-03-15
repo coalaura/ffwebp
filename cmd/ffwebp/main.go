@@ -1,8 +1,6 @@
 package main
 
 import (
-	_ "github.com/coalaura/ffwebp/internal/headless"
-
 	"bytes"
 	"context"
 	"errors"
