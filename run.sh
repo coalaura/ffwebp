@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Rebuilding..."
-go build -tags full -o ffwebp ./cmd/ffwebp
+go build -tags full,play -o ffwebp ./cmd/ffwebp
 
 chmod +x ffwebp
 

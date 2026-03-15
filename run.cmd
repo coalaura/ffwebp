@@ -8,6 +8,6 @@ if exist ffwebp.exe (
 )
 
 echo Rebuilding...
-go build -tags full -o ffwebp.exe .\cmd\ffwebp
+go build -tags full,play -o ffwebp.exe .\cmd\ffwebp
 
 .\ffwebp.exe %*
