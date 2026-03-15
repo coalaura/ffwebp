@@ -19,12 +19,7 @@ jobs:
     - name: Install Linux dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
-
-    - name: Set up Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.15.2
+        sudo apt-get install -y gcc libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -34,9 +29,8 @@ jobs:
     - name: Run integration tests
       env:
         CGO_ENABLED: 1
-        CC: zig cc -target x86_64-linux-gnu
-        CXX: zig c++ -target x86_64-linux-gnu
-        CGO_CFLAGS: "-I/usr/include/X11 -I/usr/include/GL"
+        CC: gcc
+        CXX: g++
       run: go test -v ./integration
 
   build:
@@ -48,19 +42,15 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            zig_target: x86_64-linux-musl
             flavour: core
           - goos: linux
             goarch: amd64
-            zig_target: x86_64-linux-musl
             flavour: full
           - goos: linux
             goarch: arm64
-            zig_target: aarch64-linux-musl
             flavour: core
           - goos: linux
             goarch: arm64
-            zig_target: aarch64-linux-musl
             flavour: full
           - goos: windows
             goarch: amd64
@@ -88,9 +78,10 @@ jobs:
       if: matrix.goos == 'linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
+        sudo apt-get install -y gcc gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
 
     - name: Set up Zig
+      if: matrix.goos == 'windows'
       uses: goto-bus-stop/setup-zig@v2
       with:
         version: 0.15.2
@@ -120,25 +111,30 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 1
-        CC: zig cc -target ${{ matrix.zig_target }}
-        CXX: zig c++ -target ${{ matrix.zig_target }}
       run: |
         mkdir -p build
-        [[ "$GOOS" == "windows" ]] && EXT=".exe" || EXT=""
+
+        # Configure compiler based on OS and ARCH
+        if [[ "$GOOS" == "windows" ]]; then
+          export CC="zig cc -target ${{ matrix.zig_target }}"
+          export CXX="zig c++ -target ${{ matrix.zig_target }}"
+          EXT=".exe"
+        elif [[ "$GOOS" == "linux" && "$GOARCH" == "arm64" ]]; then
+          export CC="aarch64-linux-gnu-gcc"
+          export CXX="aarch64-linux-gnu-g++"
+          EXT=""
+        else
+          export CC="gcc"
+          export CXX="g++"
+          EXT=""
+        fi
 
         OUT="build/ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}"
-
-        if [[ "${{ matrix.zig_target }}" == *"musl"* ]]; then
-          LDFLAGS="-linkmode external -extldflags '-static'"
-          export CGO_CFLAGS="-I/usr/include/X11 -I/usr/include/GL"
-        else
-          LDFLAGS=""
-        fi
 
         go build \
           -trimpath \
           -buildvcs=false \
-          -ldflags "-s -w -X 'main.Version=${{ github.ref_name }}' $LDFLAGS" \
+          -ldflags "-s -w -X 'main.Version=${{ github.ref_name }}'" \
           -tags "${{ matrix.flavour }}" \
           -o "$OUT" ./cmd/ffwebp
 
