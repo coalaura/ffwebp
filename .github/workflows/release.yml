@@ -19,7 +19,7 @@ jobs:
     - name: Install Linux dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
+        sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev
 
     - name: Set up Zig
       uses: goto-bus-stop/setup-zig@v2
@@ -36,6 +36,8 @@ jobs:
         CGO_ENABLED: 1
         CC: zig cc -target x86_64-linux-gnu
         CXX: zig c++ -target x86_64-linux-gnu
+        CGO_CFLAGS: "-I/usr/include"
+        CGO_LDFLAGS: "-L/usr/lib/x86_64-linux-gnu"
       run: go test -v ./integration
 
   build:
@@ -129,6 +131,8 @@ jobs:
 
         if [[ "${{ matrix.zig_target }}" == *"musl"* ]]; then
           LDFLAGS="-linkmode external -extldflags '-static'"
+          export CGO_CFLAGS="-I/usr/include"
+          export CGO_LDFLAGS="-L/usr/lib/x86_64-linux-gnu -L/usr/lib/aarch64-linux-gnu"
         else
           LDFLAGS=""
         fi
