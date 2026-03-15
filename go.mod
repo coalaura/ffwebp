@@ -13,6 +13,7 @@ require (
 	github.com/gen2brain/jpegn v0.3.1
 	github.com/gen2brain/jpegxl v0.4.5
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
+	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/kanrichan/resvg-go v0.0.1
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
@@ -22,14 +23,19 @@ require (
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0
 	github.com/spakin/netpbm v1.3.2
 	github.com/urfave/cli/v3 v3.4.1
-	golang.org/x/image v0.30.0
+	golang.org/x/image v0.31.0
 	gotest.tools/v3 v3.5.2
 )
 
 require (
-	github.com/ebitengine/purego v0.8.4 // indirect
+	github.com/ebitengine/gomobile v0.0.0-20250923094054-ea854a63cce1 // indirect
+	github.com/ebitengine/hideconsole v1.0.0 // indirect
+	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
+	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 )

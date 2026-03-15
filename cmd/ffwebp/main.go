@@ -20,6 +20,7 @@ import (
 	"github.com/coalaura/ffwebp/internal/help"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/coalaura/ffwebp/internal/play"
 	"github.com/coalaura/ffwebp/internal/resize"
 	"github.com/urfave/cli/v3"
 )
@@ -39,6 +40,11 @@ func main() {
 			Aliases: []string{"o"},
 			Usage:   "output file, directory, or pattern (\"-\" = stdout, supports %d and templates)",
 			Value:   "-",
+		},
+		&cli.BoolFlag{
+			Name:    "play",
+			Aliases: []string{"p"},
+			Usage:   "play/display the input image in a GUI window instead of writing to a file (like ffplay)",
 		},
 		&cli.IntFlag{
 			Name:  "start-number",
@@ -181,6 +187,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 		inputs = files
 	} else {
 		inputs = []string{input}
+	}
+
+	if cmd.Bool("play") && len(inputs) > 1 {
+		return errors.New("--play only supports a single input file")
 	}
 
 	startNum := cmd.Int("start-number")
@@ -367,62 +377,86 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		return err
 	}
 
-	if doSplit && output == "-" {
-		return errors.New("--split requires file output (not stdout)")
-	}
+	doPlay := cmd.Bool("play")
 
-	oCodec, oExt, err := codec.Detect(output, cmd.String("codec"))
-	if err != nil {
-		return err
-	}
+	if doSplit {
+		if doPlay {
+			return errors.New("--split cannot be used with --play")
+		}
 
-	localOpts := *common
-	localOpts.OutputExtension = oExt
-
-	logx.Fprintf(logger, "output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
-
-	if output != "-" {
-		curExt := strings.TrimPrefix(filepath.Ext(output), ".")
-
-		if mappedFromDir || curExt == "" || curExt != oExt {
-			base := strings.TrimSuffix(output, filepath.Ext(output))
-			output = base + "." + oExt
+		if output == "-" {
+			return errors.New("--split requires file output (not stdout)")
 		}
 	}
 
-	if !doSplit {
+	localOpts := *common
+
+	var (
+		oCodec codec.Codec
+		oExt   string
+	)
+
+	if !doPlay {
+		oCodec, oExt, err = codec.Detect(output, cmd.String("codec"))
+		if err != nil {
+			return err
+		}
+
+		localOpts.OutputExtension = oExt
+
+		logx.Fprintf(logger, "output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
+
 		if output != "-" {
-			if cmd.Bool("skip-existing") {
-				if _, err := os.Stat(output); err == nil {
-					logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
+			curExt := strings.TrimPrefix(filepath.Ext(output), ".")
 
-					return nil
+			if mappedFromDir || curExt == "" || curExt != oExt {
+				base := strings.TrimSuffix(output, filepath.Ext(output))
+				output = base + "." + oExt
+			}
+		}
+
+		if !doSplit {
+			if output != "-" {
+				if cmd.Bool("skip-existing") {
+					if _, err := os.Stat(output); err == nil {
+						logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
+
+						return nil
+					}
 				}
+
+				logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
+
+				if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+					return err
+				}
+
+				file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+				if err != nil {
+					return err
+				}
+
+				defer file.Close()
+
+				writer = &countWriter{w: file}
+			} else {
+				logx.Fprintf(logger, "writing output to <stdout>\n")
 			}
-
-			logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
-
-			if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-				return err
-			}
-
-			file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			if err != nil {
-				return err
-			}
-
-			defer file.Close()
-
-			writer = &countWriter{w: file}
-		} else {
-			logx.Fprintf(logger, "writing output to <stdout>\n")
 		}
 	}
 
 	t0 := time.Now()
 
 	animDecoder, hasAnimDecoder := sniffed.Codec.(codec.AnimatedDecoder)
-	animEncoder, hasAnimEncoder := oCodec.(codec.AnimatedEncoder)
+
+	var (
+		animEncoder    codec.AnimatedEncoder
+		hasAnimEncoder bool
+	)
+
+	if oCodec != nil {
+		animEncoder, hasAnimEncoder = oCodec.(codec.AnimatedEncoder)
+	}
 
 	frameIdx := cmd.Int("frame")
 	timeMs := int(cmd.Duration("time").Milliseconds())
@@ -470,7 +504,7 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 			img = anim.Frames[selectedIdx]
 
 			logx.Fprintf(logger, "selected frame %d at ~%dms from %d frame animation\n", selectedIdx, cumulativeTime, len(anim.Frames))
-		} else if !hasAnimEncoder || doSplit {
+		} else if (!doPlay && !hasAnimEncoder) || doSplit {
 			img = anim.Frames[0]
 
 			if doSplit {
@@ -516,6 +550,12 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 				logx.Fprintf(logger, "applied %d effect(s) to %d frame(s) in %s\n", n, len(anim.Frames), time.Since(t1).Truncate(time.Millisecond))
 			}
 
+			if doPlay {
+				logx.Fprintf(logger, "playing animation...\n")
+
+				return play.PlayAnimation(anim)
+			}
+
 			t2 := time.Now()
 
 			err := animEncoder.EncodeAll(writer, anim, localOpts)
@@ -559,6 +599,12 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		return err
 	} else if n > 0 {
 		logx.Fprintf(logger, "applied %d effect(s) in %s\n", n, time.Since(t1).Truncate(time.Millisecond))
+	}
+
+	if doPlay {
+		logx.Fprintf(logger, "playing image...\n")
+
+		return play.PlayImage(img)
 	}
 
 	t2 := time.Now()
