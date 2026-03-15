@@ -36,8 +36,7 @@ jobs:
         CGO_ENABLED: 1
         CC: zig cc -target x86_64-linux-gnu
         CXX: zig c++ -target x86_64-linux-gnu
-        CGO_CFLAGS: "-I/usr/include"
-        CGO_LDFLAGS: "-L/usr/lib/x86_64-linux-gnu"
+        CGO_CFLAGS: "-I/usr/include/X11 -I/usr/include/GL"
       run: go test -v ./integration
 
   build:
@@ -131,8 +130,7 @@ jobs:
 
         if [[ "${{ matrix.zig_target }}" == *"musl"* ]]; then
           LDFLAGS="-linkmode external -extldflags '-static'"
-          export CGO_CFLAGS="-I/usr/include"
-          export CGO_LDFLAGS="-L/usr/lib/x86_64-linux-gnu -L/usr/lib/aarch64-linux-gnu"
+          export CGO_CFLAGS="-I/usr/include/X11 -I/usr/include/GL"
         else
           LDFLAGS=""
         fi
