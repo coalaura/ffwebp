@@ -17,6 +17,24 @@ case "$ARCH" in
 		;;
 esac
 
+echo "Select the ffwebp variant to install:"
+echo "  1) core"
+echo "  2) full (default)"
+echo "  3) full-play"
+read -p "Enter choice [1-3]: " VARIANT_CHOICE || true
+
+case "$VARIANT_CHOICE" in
+	1)
+		VARIANT="core"
+		;;
+	3)
+		VARIANT="full-play"
+		;;
+	*)
+		VARIANT="full"
+		;;
+esac
+
 echo "Resolving latest version..."
 
 VERSION=$(curl -sL https://api.github.com/repos/coalaura/ffwebp/releases/latest | grep -Po '"tag_name": *"\K.*?(?=")')
@@ -28,7 +46,7 @@ fi
 
 rm -f /tmp/ffwebp
 
-BIN="ffwebp_${VERSION}_full_${OS}_${ARCH}"
+BIN="ffwebp_${VERSION}_${VARIANT}_${OS}_${ARCH}"
 URL="https://github.com/coalaura/ffwebp/releases/download/${VERSION}/${BIN}"
 
 echo "Downloading ${BIN}..."
@@ -49,4 +67,4 @@ if ! sudo install -m755 /tmp/ffwebp /usr/local/bin/ffwebp; then
 	exit 1
 fi
 
-echo "ffwebp $VERSION installed to /usr/local/bin/ffwebp"
+echo "ffwebp $VERSION ($VARIANT) installed to /usr/local/bin/ffwebp"
