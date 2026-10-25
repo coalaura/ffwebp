@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -19,7 +19,7 @@ jobs:
     - name: Set up Zig
       uses: goto-bus-stop/setup-zig@v2
       with:
-        version: 0.15.2
+        version: 0.17.0
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -40,190 +40,110 @@ jobs:
 
     strategy:
       matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        variant: [core, full, full-play]
         include:
-          - goos: linux
-            goarch: amd64
-            zig_target: x86_64-linux-musl
-            flavour: core
-          - goos: linux
-            goarch: amd64
-            zig_target: x86_64-linux-musl
-            flavour: full
-          - goos: linux
-            goarch: amd64
-            flavour: "full,play"
-            suffix: "-play"
-
-          - goos: linux
-            goarch: arm64
-            zig_target: aarch64-linux-musl
-            flavour: core
-          - goos: linux
-            goarch: arm64
-            zig_target: aarch64-linux-musl
-            flavour: full
-          - goos: linux
-            goarch: arm64
-            flavour: "full,play"
-            suffix: "-play"
-
-          - goos: windows
-            goarch: amd64
-            zig_target: x86_64-windows-gnu
-            flavour: core
-          - goos: windows
-            goarch: amd64
-            zig_target: x86_64-windows-gnu
-            flavour: full
-          - goos: windows
-            goarch: amd64
-            zig_target: x86_64-windows-gnu
-            flavour: "full,play"
-            suffix: "-play"
-
-          - goos: windows
-            goarch: arm64
-            zig_target: aarch64-windows-gnu
-            flavour: core
-          - goos: windows
-            goarch: arm64
-            zig_target: aarch64-windows-gnu
-            flavour: full
-          - goos: windows
-            goarch: arm64
-            zig_target: aarch64-windows-gnu
-            flavour: "full,play"
-            suffix: "-play"
+          - variant: core
+            tags: core
+          - variant: full
+            tags: full
+          - variant: full-play
+            tags: full,play
       fail-fast: false
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install Linux GUI dependencies
-      if: matrix.goos == 'linux' && matrix.suffix == '-play'
-      run: |
-        # Fix Ubuntu 24.04 APT sources to support arm64 cross-compilation
-        cat << 'EOF' | sudo tee /etc/apt/sources.list.d/ubuntu.sources
-        Types: deb
-        URIs: http://archive.ubuntu.com/ubuntu/
-        Suites: noble noble-updates noble-backports
-        Components: main restricted universe multiverse
-        Architectures: amd64
-
-        Types: deb
-        URIs: http://security.ubuntu.com/ubuntu/
-        Suites: noble-security
-        Components: main restricted universe multiverse
-        Architectures: amd64
-
-        Types: deb
-        URIs: http://ports.ubuntu.com/ubuntu-ports/
-        Suites: noble noble-updates noble-backports noble-security
-        Components: main restricted universe multiverse
-        Architectures: arm64
-        EOF
-
-        sudo dpkg --add-architecture arm64
-        sudo apt-get update
-        sudo apt-get install -y gcc gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-          libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxext-dev libxxf86vm-dev libgl1-mesa-dev xorg-dev \
-          libx11-dev:arm64 libxrandr-dev:arm64 libxcursor-dev:arm64 libxinerama-dev:arm64 libxi-dev:arm64 libxext-dev:arm64 libxxf86vm-dev:arm64 libgl1-mesa-dev:arm64
-
-    - name: Set up Zig
-      uses: goto-bus-stop/setup-zig@v2
-      with:
-        version: 0.15.2
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: 'go.mod'
-
     - name: Generate Windows resources
       if: matrix.goos == 'windows'
+      env:
+        RELEASE_VERSION: ${{ github.ref_name }}
+        TARGET_ARCH: ${{ matrix.goarch }}
       run: |
-        go install github.com/tc-hib/go-winres@latest
-        go-winres simply \
+        docker run --rm --volume "$GITHUB_WORKSPACE:/workspace" --workdir /workspace/cmd/ffwebp --entrypoint go ghcr.io/coalaura/builder:latest run github.com/tc-hib/go-winres@latest simply \
           --manifest cli \
           --product-name FFWebP \
           --original-filename ffwebp.exe \
-          --icon logo.ico \
-          --copyright "(c) 2025 coalaura" \
+          --icon ../../logo.ico \
+          --copyright "(c) 2026 coalaura" \
           --file-description "Convert any image format into any other image format" \
-          --file-version "${{ github.ref_name }}" \
-          --arch "${{ matrix.goarch }}"
+          --file-version "$RELEASE_VERSION" \
+          --arch "$TARGET_ARCH"
 
-    - name: Build ${{ matrix.goos }}_${{ matrix.goarch }} (${{ matrix.flavour }})
-      shell: bash
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 1
-      run: |
-        mkdir -p build
+    - name: Build ${{ matrix.goos }}_${{ matrix.goarch }} (${{ matrix.variant }})
+      id: build
+      uses: coalaura/build@v1
+      with:
+        os: ${{ matrix.goos }}
+        arch: ${{ matrix.goarch }}
+        cgo: true
+        # Linux playback loads the system's glibc-based X11 and OpenGL libraries.
+        link: ${{ matrix.goos == 'linux' && matrix.variant == 'full-play' && 'dynamic' || 'static' }}
+        optimization: compatible
+        generate: false
+        package: ./cmd/ffwebp
+        output: dist/ffwebp_${{ github.ref_name }}_${{ matrix.variant }}_${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+        go-flags: |
+          -tags=${{ matrix.tags }}
+          -ldflags=-X main.Version=${{ github.ref_name }}
 
-        LDFLAGS=""
-        EXT=""
+    - name: Sign
+      id: sign
+      uses: coalaura/sign@v1
+      with:
+        path: ${{ steps.build.outputs.path }}
+        key: ${{ secrets.COALAURA_PFX }}
+        passphrase: ${{ secrets.COALAURA_PFX_PASSWORD }}
+        chain: |
+          https://wiese2.org/pki/issuing.pem
+          https://wiese2.org/pki/root.pem
 
-        if [[ "$GOOS" == "windows" ]]; then
-          export CC="zig cc -target ${{ matrix.zig_target }}"
-          export CXX="zig c++ -target ${{ matrix.zig_target }}"
-          EXT=".exe"
-        elif [[ "$GOOS" == "linux" && "${{ matrix.suffix }}" == "-play" ]]; then
-          # Use GCC for Linux GUI builds to avoid Zig CC's glibc/X11 header conflicts
-          if [[ "$GOARCH" == "arm64" ]]; then
-            export CC="aarch64-linux-gnu-gcc"
-            export CXX="aarch64-linux-gnu-g++"
-            export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
-          else
-            export CC="gcc"
-            export CXX="g++"
-          fi
-        else
-          export CC="zig cc -target ${{ matrix.zig_target }}"
-          export CXX="zig c++ -target ${{ matrix.zig_target }}"
-          if [[ "${{ matrix.zig_target }}" == *"musl"* ]]; then
-            LDFLAGS="-linkmode external -extldflags '-static'"
-          fi
-        fi
-
-        FLAVOUR_NAME="core"
-        if [[ "${{ matrix.flavour }}" == *"full"* ]]; then
-          FLAVOUR_NAME="full"
-        fi
-
-        OUT="build/ffwebp_${{ github.ref_name }}_${FLAVOUR_NAME}${{ matrix.suffix }}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}"
-
-        go build \
-          -trimpath \
-          -buildvcs=false \
-          -ldflags "-s -w -X 'main.Version=${{ github.ref_name }}' $LDFLAGS" \
-          -tags "${{ matrix.flavour }}" \
-          -o "$OUT" ./cmd/ffwebp
-
-    - name: Upload artifact
+    - name: Upload signed artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ffwebp_${{ github.ref_name }}_${{ matrix.flavour }}_${{ matrix.goos }}_${{ matrix.goarch }}
-        path: build/*
+        name: signed-ffwebp-${{ matrix.goos }}-${{ matrix.goarch }}-${{ matrix.variant }}
+        path: ${{ steps.sign.outputs.path }}
+        if-no-files-found: error
 
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Download all build artifacts
-      uses: actions/download-artifact@v4
+    - name: Download signed artifacts
+      uses: actions/download-artifact@v8
       with:
-        path: ./build
+        pattern: signed-ffwebp-*
+        merge-multiple: true
+        path: dist
+
+    - name: Generate checksums
+      working-directory: dist
+      run: sha256sum -b ffwebp_* > SHA256SUMS
+
+    - name: Attest signed binaries
+      uses: actions/attest@v4
+      with:
+        subject-checksums: dist/SHA256SUMS
 
     - name: Create GitHub release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
-        files: ./build/**
+        files: |
+          dist/ffwebp_*
+          dist/SHA256SUMS
+        fail_on_unmatched_files: true
+        generate_release_notes: true
+        prerelease: ${{ contains(github.ref_name, '-') }}
         name: "Release ${{ github.ref_name }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
