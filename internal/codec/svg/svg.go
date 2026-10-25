@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -18,6 +19,8 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 var (
 	svgWidth      int
 	svgHeight     int
@@ -28,8 +31,6 @@ var (
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "svg"
@@ -76,7 +77,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	buf := make([]byte, 256)
 
 	n, err := reader.ReadAt(buf, 0)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, nil, err
 	}
 
@@ -133,29 +134,33 @@ func (impl) Decode(r io.Reader) (image.Image, error) {
 
 	var pngData []byte
 
-	if svgWidth > 0 || svgHeight > 0 {
-		tmpPng, err := renderer.Render(svgData)
-		if err == nil && len(tmpPng) > 0 {
-			cfg, err := png.DecodeConfig(bytes.NewReader(tmpPng))
-			if err == nil {
-				origW, origH := int(cfg.Width), int(cfg.Height)
+	if svgWidth > 0 && svgHeight > 0 {
+		logx.Printf("svg: rendering at %dx%d\n", svgWidth, svgHeight)
 
-				w, h := calculateSize(origW, origH, svgWidth, svgHeight)
-
-				logx.Printf("svg: rendering at %dx%d (original: %dx%d)\n", w, h, origW, origH)
-
-				pngData, err = renderer.RenderWithSize(svgData, uint32(w), uint32(h))
-				if err != nil {
-					return nil, fmt.Errorf("svg: render with size failed: %w", err)
-				}
-			}
-		}
+		pngData, err = renderer.RenderWithSize(svgData, uint32(svgWidth), uint32(svgHeight))
+	} else {
+		pngData, err = renderer.Render(svgData)
 	}
 
-	if len(pngData) == 0 {
-		pngData, err = renderer.Render(svgData)
+	if err != nil {
+		return nil, fmt.Errorf("svg: render failed: %w", err)
+	}
+
+	// The renderer has no size-query API; one requested dimension needs the intrinsic aspect ratio.
+	if (svgWidth > 0) != (svgHeight > 0) {
+		config, err := png.DecodeConfig(bytes.NewReader(pngData))
 		if err != nil {
-			return nil, fmt.Errorf("svg: render failed: %w", err)
+			return nil, fmt.Errorf("svg: failed to read rendered size: %w", err)
+		}
+
+		width, height := calculateSize(config.Width, config.Height, svgWidth, svgHeight)
+		if width != config.Width || height != config.Height {
+			logx.Printf("svg: rendering at %dx%d (original: %dx%d)\n", width, height, config.Width, config.Height)
+
+			pngData, err = renderer.RenderWithSize(svgData, uint32(width), uint32(height))
+			if err != nil {
+				return nil, fmt.Errorf("svg: render with size failed: %w", err)
+			}
 		}
 	}
 
@@ -176,7 +181,8 @@ func (impl) Encode(w io.Writer, img image.Image, options opts.Common) error {
 }
 
 func calculateSize(origW, origH, targetW, targetH int) (int, int) {
-	w, h := origW, origH
+	w := origW
+	h := origH
 
 	if targetW > 0 && targetH > 0 {
 		return targetW, targetH
@@ -267,7 +273,11 @@ func parseColor(s string) color.Color {
 		}
 
 		if len(s) == 6 {
-			var r, g, b uint8
+			var (
+				r uint8
+				g uint8
+				b uint8
+			)
 
 			_, err := fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b)
 			if err == nil {

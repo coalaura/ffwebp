@@ -2,6 +2,7 @@ package jpegxl
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -14,15 +15,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var (
-	effort int
-)
+type impl struct{}
+
+var effort int
 
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "jpegxl"
@@ -63,8 +62,9 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	buf := make([]byte, 12)
 
-	if _, err := reader.ReadAt(buf, 0); err != nil {
-		if err == io.EOF {
+	_, err := reader.ReadAt(buf, 0)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
 			return 0, nil, nil
 		}
 
@@ -87,10 +87,11 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	logx.Printf("jpegxl: quality=%d effort=%d\n", options.Quality, effort)
+	logx.Printf("jpegxl: quality=%d effort=%d lossless=%t\n", options.Quality, effort, options.Lossless)
 
 	return jxl.Encode(writer, img, jxl.Options{
-		Quality: options.Quality,
-		Effort:  effort,
+		Quality:  options.Quality,
+		Effort:   effort,
+		Lossless: options.Lossless,
 	})
 }

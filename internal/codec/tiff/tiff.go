@@ -2,6 +2,7 @@ package tiff
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 var (
 	compression int
 	predictor   bool
@@ -22,8 +25,6 @@ var (
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "tiff"
@@ -41,11 +42,11 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{
 			Name:        "tiff.compression",
-			Usage:       "TIFF: compression (0=none, 1=deflate, 2=lzw, 3=ccitt3, 4=ccitt4)",
+			Usage:       "TIFF: compression (0=none, 1=deflate)",
 			Value:       1,
 			Destination: &compression,
 			Validator: func(value int) error {
-				if value < 0 || value > 4 {
+				if value < 0 || value > 1 {
 					return fmt.Errorf("invalid tiff.compression: %d", value)
 				}
 
@@ -54,7 +55,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 		},
 		&cli.BoolFlag{
 			Name:        "tiff.predictor",
-			Usage:       "TIFF: enable differencing predictor (improves compression for photos)",
+			Usage:       "TIFF: enable differencing predictor with Deflate compression",
 			Value:       false,
 			Destination: &predictor,
 		},
@@ -62,11 +63,10 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 }
 
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
-	// Recognize classic TIFF (II*\0 or MM\0*) and BigTIFF (signature 43)
-	buf := make([]byte, 16)
+	buf := make([]byte, 8)
 
 	n, err := reader.ReadAt(buf, 0)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, nil, err
 	}
 
@@ -78,16 +78,6 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	if bytes.Equal(buf[0:4], []byte{0x49, 0x49, 0x2A, 0x00}) || bytes.Equal(buf[0:4], []byte{0x4D, 0x4D, 0x00, 0x2A}) {
 		return 100, buf[:8], nil
-	}
-
-	// BigTIFF: byte order + 43 marker, bytesize=8
-	isLE := bytes.Equal(buf[0:2], []byte{'I', 'I'})
-	isBE := bytes.Equal(buf[0:2], []byte{'M', 'M'})
-
-	if isLE || isBE {
-		if (isLE && buf[2] == 0x2B && buf[3] == 0x00 && buf[4] == 0x08 && buf[5] == 0x00) || (isBE && buf[2] == 0x00 && buf[3] == 0x2B && buf[4] == 0x00 && buf[5] == 0x08) {
-			return 100, buf[:8], nil
-		}
 	}
 
 	return 0, nil, nil
@@ -107,18 +97,9 @@ func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
 }
 
 func compressionType(level int) tiff.CompressionType {
-	switch level {
-	case 0:
+	if level == 0 {
 		return tiff.Uncompressed
-	case 1:
-		return tiff.Deflate
-	case 2:
-		return tiff.LZW
-	case 3:
-		return tiff.CCITTGroup3
-	case 4:
-		return tiff.CCITTGroup4
-	default:
-		return tiff.Deflate
 	}
+
+	return tiff.Deflate
 }
