@@ -3,7 +3,6 @@ package jpeg
 import (
 	"bytes"
 	"image"
-	"image/jpeg"
 	"io"
 
 	"github.com/coalaura/ffwebp/internal/codec"
@@ -61,7 +60,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
 	logx.Printf("jpeg: quality=%d\n", options.Quality)
 
-	return jpeg.Encode(writer, img, &jpeg.Options{
+	return jpegn.Encode(writer, img, &jpegn.EncodeOptions{
 		Quality: options.Quality,
 	})
 }
