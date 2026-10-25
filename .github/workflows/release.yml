@@ -62,7 +62,7 @@ jobs:
         RELEASE_VERSION: ${{ github.ref_name }}
         TARGET_ARCH: ${{ matrix.goarch }}
       run: |
-        docker run --rm --volume "$GITHUB_WORKSPACE:/workspace" --workdir /workspace/cmd/ffwebp --entrypoint go ghcr.io/coalaura/builder:latest run github.com/tc-hib/go-winres@latest simply \
+        docker run --rm --volume "$GITHUB_WORKSPACE:/workspace" --workdir /workspace/cmd/ffwebp --entrypoint go coalaura/builder:latest run github.com/tc-hib/go-winres@latest simply \
           --manifest cli \
           --product-name FFWebP \
           --original-filename ffwebp.exe \
