@@ -42,8 +42,12 @@ Notes
 
 Basic conversion
 ```bash
+ffwebp -i input.jpg output.webp
+# or, equivalently
 ffwebp -i input.jpg -o output.webp
 ```
+
+The output file, directory or pattern can be supplied as a positional argument instead of `-o`/`--output`. Use only one form per command. If neither is supplied, output defaults to stdout.
 
 Pipe stdin/stdout
 ```bash

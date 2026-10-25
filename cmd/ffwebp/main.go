@@ -38,7 +38,7 @@ func main() {
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
-			Usage:   "output file, directory, or pattern (\"-\" = stdout, supports %d and templates)",
+			Usage:   "output file, directory or pattern (can also be passed as a positional argument; \"-\" = stdout, supports %d and templates)",
 			Value:   "-",
 		},
 		&cli.BoolFlag{
@@ -123,6 +123,7 @@ func main() {
 	app := &cli.Command{
 		Name:                   "ffwebp",
 		Usage:                  "Convert any image format into any other image format",
+		ArgsUsage:              "[output]",
 		Version:                fmt.Sprintf("%s %s", Version, tags()),
 		Flags:                  flags,
 		Action:                 run,
@@ -158,6 +159,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	input = cmd.String("input")
 	output = cmd.String("output")
+
+	args := cmd.Args()
+	if args.Len() > 1 {
+		return errors.New("expected at most one output argument")
+	}
+
+	if args.Len() == 1 {
+		if cmd.IsSet("output") {
+			return errors.New("output specified both as an argument and with --output")
+		}
+
+		output = args.First()
+	}
 
 	var inputs []string
 
