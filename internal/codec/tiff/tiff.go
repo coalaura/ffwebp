@@ -7,11 +7,10 @@ import (
 	"image"
 	"io"
 
-	"golang.org/x/image/tiff"
-
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/hhrutter/tiff"
 	"github.com/urfave/cli/v3"
 )
 
@@ -42,11 +41,11 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags,
 		&cli.IntFlag{
 			Name:        "tiff.compression",
-			Usage:       "TIFF: compression (0=none, 1=deflate)",
+			Usage:       "TIFF: compression (0=none, 1=deflate, 2=lzw)",
 			Value:       1,
 			Destination: &compression,
 			Validator: func(value int) error {
-				if value < 0 || value > 1 {
+				if value < 0 || value > 2 {
 					return fmt.Errorf("invalid tiff.compression: %d", value)
 				}
 
@@ -55,7 +54,7 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 		},
 		&cli.BoolFlag{
 			Name:        "tiff.predictor",
-			Usage:       "TIFF: enable differencing predictor with Deflate compression",
+			Usage:       "TIFF: enable differencing predictor with Deflate or LZW compression",
 			Value:       false,
 			Destination: &predictor,
 		},
@@ -84,6 +83,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
+	// Document pages are not animation frames; Decode reads only the first IFD.
 	return tiff.Decode(reader)
 }
 
@@ -92,14 +92,17 @@ func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
 
 	return tiff.Encode(writer, img, &tiff.Options{
 		Compression: compressionType(compression),
-		Predictor:   predictor,
+		Predictor:   predictor && (compression == 1 || compression == 2),
 	})
 }
 
 func compressionType(level int) tiff.CompressionType {
-	if level == 0 {
+	switch level {
+	case 0:
 		return tiff.Uncompressed
+	case 2:
+		return tiff.LZW
+	default:
+		return tiff.Deflate
 	}
-
-	return tiff.Deflate
 }

@@ -8,13 +8,13 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"image/png"
 	"io"
 	"strings"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/gen2brain/pngn"
 	"github.com/kanrichan/resvg-go"
 	"github.com/urfave/cli/v3"
 )
@@ -148,7 +148,7 @@ func (impl) Decode(r io.Reader) (image.Image, error) {
 
 	// The renderer has no size-query API; one requested dimension needs the intrinsic aspect ratio.
 	if (svgWidth > 0) != (svgHeight > 0) {
-		config, err := png.DecodeConfig(bytes.NewReader(pngData))
+		config, err := pngn.DecodeConfig(bytes.NewReader(pngData))
 		if err != nil {
 			return nil, fmt.Errorf("svg: failed to read rendered size: %w", err)
 		}
@@ -164,7 +164,7 @@ func (impl) Decode(r io.Reader) (image.Image, error) {
 		}
 	}
 
-	img, err := png.Decode(bytes.NewReader(pngData))
+	img, err := pngn.Decode(bytes.NewReader(pngData))
 	if err != nil {
 		return nil, fmt.Errorf("svg: failed to decode rendered PNG: %w", err)
 	}

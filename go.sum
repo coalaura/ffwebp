@@ -24,6 +24,8 @@ github.com/gen2brain/jpegn v0.6.1 h1:S+Em15BvqCl/cTvebB6JU67ndDVdFWPhB0GbxNkWlOE
 github.com/gen2brain/jpegn v0.6.1/go.mod h1:43hks+w5VNTUDU34uk0tsXYJ97nbYL2idAlZF0D66+A=
 github.com/gen2brain/jpegxl v0.6.0 h1:Boi2StJZjHCLbAQZVZqckNBm31PpcVeLWeXZoCX9e+Q=
 github.com/gen2brain/jpegxl v0.6.0/go.mod h1:k12RrSe06pYjocXciISjgDq3Kzhz40MHtIu8aTk2pOc=
+github.com/gen2brain/pngn v0.1.3 h1:5Vj2+GuOiU+r+MZk4imO2z1ZJSSAhk2xHFA2lfOm9uU=
+github.com/gen2brain/pngn v0.1.3/go.mod h1:jmw3LV2MHgoK4PBdsLC3YTiLUBaY5Nlfi3UFvxqJc9E=
 github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97 h1:DdKf/zTPiJP9GyxSJPRW3UpsKjIXrpEQOOc+N2mXbuE=
 github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97/go.mod h1:1YB2Y6fvddxaSsiTvGp6+WWg17jt1MKhTwJWnGD1zN4=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
@@ -32,6 +34,8 @@ github.com/gopherjs/gopherjs v1.21.0 h1:5HEGrz+XhpCchubMGzuyLuGoCTlL/yCT7sGsT5Se
 github.com/gopherjs/gopherjs v1.21.0/go.mod h1:R2HIOen3IzYSzvmvkeD8WOfiLN9wueR/T5Y+6z326Ck=
 github.com/hajimehoshi/ebiten/v2 v2.10.5 h1:D6XuOFhzgkvfqeA6Xwwvcz54uj6HHPNC9Y+0pE6Qfs4=
 github.com/hajimehoshi/ebiten/v2 v2.10.5/go.mod h1:47QNgyS/y2ZRkjVUvlGLx8a+F7MSjcn8/GsjcCZ9Rc8=
+github.com/hhrutter/tiff v1.0.7 h1:Oelnv46vb9gycPsotT0q1IoJ6Ywkzd77I1smgQvkP7g=
+github.com/hhrutter/tiff v1.0.7/go.mod h1:XsBnsIe/pJedrn5ppmL1zu2DIGfwXqlfQFK60vztqCE=
 github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f h1:1LkiAnH6RhOEbQAcfcEcixM5IsegqFi6IH0Nz0ZGqYs=
 github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f/go.mod h1:mQEoc766DxPTAwQ54neWTK/lFqIeSO7OU6bqZsceglw=
 github.com/kanrichan/resvg-go v0.0.1 h1:qXt/ffAcybitiGxELLm40SQ58IW137Fv8WbN/kaooHY=

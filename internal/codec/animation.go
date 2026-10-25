@@ -11,6 +11,7 @@ import (
 )
 
 // Animation represents a simple multi-frame image. Delays are in milliseconds.
+// LoopCount follows GIF: 0 loops forever, -1 plays once, and positive values count repeats.
 type Animation struct {
 	Frames     []image.Image
 	Delays     []int

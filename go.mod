@@ -12,8 +12,10 @@ require (
 	github.com/gen2brain/heic v0.7.2
 	github.com/gen2brain/jpegn v0.6.1
 	github.com/gen2brain/jpegxl v0.6.0
+	github.com/gen2brain/pngn v0.1.3
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hajimehoshi/ebiten/v2 v2.10.5
+	github.com/hhrutter/tiff v1.0.7
 	github.com/hullerob/go.farbfeld v0.0.0-20181222022525-3661193c725f
 	github.com/kanrichan/resvg-go v0.0.1
 	github.com/kriticalflare/qoi v0.0.0-20240815192827-34f66f23bcef
