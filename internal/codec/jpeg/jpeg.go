@@ -2,6 +2,7 @@ package jpeg
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"io"
 
@@ -13,6 +14,21 @@ import (
 )
 
 type impl struct{}
+
+var (
+	progressive          bool
+	optimize             bool
+	adaptiveQuantization bool
+	subsampling          string
+	subsamplingValues    = map[string]jpegn.Subsampling{
+		"auto": jpegn.SubsampleAuto,
+		"444":  jpegn.Subsample444,
+		"440":  jpegn.Subsample440,
+		"422":  jpegn.Subsample422,
+		"420":  jpegn.Subsample420,
+		"gray": jpegn.SubsampleGray,
+	}
+)
 
 func init() {
 	codec.Register(impl{})
@@ -27,7 +43,36 @@ func (impl) Extensions() []string {
 }
 
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
-	return flags
+	return append(flags,
+		&cli.BoolFlag{
+			Name:        "jpeg.progressive",
+			Usage:       "JPEG: progressive encoding (extra encoding time for potentially smaller files)",
+			Destination: &progressive,
+		},
+		&cli.BoolFlag{
+			Name:        "jpeg.optimize",
+			Usage:       "JPEG: optimize Huffman coding (extra encoding time for potentially smaller files)",
+			Destination: &optimize,
+		},
+		&cli.BoolFlag{
+			Name:        "jpeg.adaptive-quantization",
+			Usage:       "JPEG: discard less visible coefficients (extra encoding time for potentially smaller files)",
+			Destination: &adaptiveQuantization,
+		},
+		&cli.StringFlag{
+			Name:        "jpeg.subsampling",
+			Usage:       "JPEG: chroma subsampling (auto, 444, 440, 422, 420, gray)",
+			Value:       "auto",
+			Destination: &subsampling,
+			Validator: func(value string) error {
+				if _, ok := subsamplingValues[value]; !ok {
+					return fmt.Errorf("invalid jpeg.subsampling: %q (want auto, 444, 440, 422, 420, or gray)", value)
+				}
+
+				return nil
+			},
+		},
+	)
 }
 
 func (impl) CanEncode() bool {
@@ -58,9 +103,13 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	logx.Printf("jpeg: quality=%d\n", options.Quality)
+	logx.Printf("jpeg: quality=%d progressive=%t optimize=%t adaptive-quantization=%t subsampling=%s\n", options.Quality, progressive, optimize, adaptiveQuantization, subsampling)
 
 	return jpegn.Encode(writer, img, &jpegn.EncodeOptions{
-		Quality: options.Quality,
+		Quality:              options.Quality,
+		Progressive:          progressive,
+		OptimizeCoding:       optimize,
+		AdaptiveQuantization: adaptiveQuantization,
+		Subsampling:          subsamplingValues[subsampling],
 	})
 }
