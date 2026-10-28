@@ -6,10 +6,10 @@ TOPIC:
 
 INPUT PATTERNS:
    - Globs: *, ?, [..] (shell-expanded on Unix; expanded by ffwebp on Windows)
-   - Numeric sequences: %d, %02d (start at --start-number, default 1)
+   - Numeric sequences: %d, %02d (all matching inputs, sorted numerically)
 
 OUTPUT PATTERNS:
-   - %d sequences (same numbering as input/index)
+   - %d, %02d sequences (first output is --start-number, default 1)
    - Templates (GNU-parallel style):
        {}    full input path
        {.}   input path without last extension
@@ -17,12 +17,22 @@ OUTPUT PATTERNS:
        {/.}  basename without extension
        {//}  directory (no trailing slash)
        {#}   sequence number (uses --start-number)
+   - Tile templates with --split (zero-based, left to right, top to bottom):
+       {r}   tile row
+       {c}   tile column
+       {i}   tile index
 
 EXAMPLES:
    ffwebp -i "*.png" -o "{/.}.webp"
    ffwebp -i "frames/%03d.png" -o "out/frame-{#}.png" --start-number 10
-   ffwebp -i "images/**/*.jpg" -o "out/{//}/{/.}.avif"
+   # First output: out/frame-10.png, then out/frame-11.png
+   ffwebp -i "frames/%d.png" -o "out/{/.}-%03d-{#}-{r}-{c}-{i}.png" --start-number 10 --split 2x2
+   # If the first input is 2.png: 2-010-10-0-0-0.png, 2-010-10-0-1-1.png,
+   #                2-010-10-1-0-2.png, 2-010-10-1-1-3.png (under out/)
+   ffwebp -i "images/*.jpg" -o "out/{/.}.avif"
 
 NOTES:
    - Output codec is inferred from the final extension unless --codec is set.
    - With multiple inputs, output must be a pattern or directory.
+   - Ordinary templates, sequence numbers and tile templates can be combined.
+   - Without a tile template, --split adds _r0_c0, _r0_c1, etc. before the extension.

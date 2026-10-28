@@ -5,24 +5,27 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/color/palette"
 	"image/draw"
 	"image/gif"
 	"io"
+	"math/rand/v2"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
+	"github.com/ericpauley/go-quantize/quantize"
 	"github.com/urfave/cli/v3"
 )
+
+const paletteSamples = 65536
+
+type impl struct{}
 
 var numColors int
 
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "gif"
@@ -39,7 +42,7 @@ func (impl) CanEncode() bool {
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
 	return append(flags, &cli.IntFlag{
 		Name:        "gif.colors",
-		Usage:       "GIF: Number of colors (1-256)",
+		Usage:       "GIF: Total palette colors, including transparency (1-256)",
 		Value:       256,
 		Destination: &numColors,
 		Validator: func(value int) error {
@@ -58,7 +61,8 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 
 	buf := make([]byte, 6)
 
-	if _, err := reader.ReadAt(buf, 0); err != nil {
+	_, err := reader.ReadAt(buf, 0)
+	if err != nil {
 		return 0, nil, err
 	}
 
@@ -98,7 +102,9 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 	bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
 	canvas := image.NewRGBA(bounds)
 
-	draw.Draw(canvas, bounds, &image.Uniform{background}, image.Point{}, draw.Src)
+	initialBackground := frameBackground(g.Image[0], background)
+
+	draw.Draw(canvas, bounds, &image.Uniform{C: initialBackground}, image.Point{}, draw.Src)
 
 	frames := make([]image.Image, len(g.Image))
 
@@ -129,8 +135,10 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 			switch disposal {
 			case 0, 1: // No disposal specified or do not dispose - keep canvas as is
 				// Do nothing
-			case 2: // Restore to background color - clear frame area to background
-				draw.Draw(canvas, srcFrame.Bounds(), &image.Uniform{background}, image.Point{}, draw.Src)
+			case 2: // Transparent frames restore to a transparent canvas, not the RGB global table.
+				clearColor := frameBackground(srcFrame, background)
+
+				draw.Draw(canvas, srcFrame.Bounds(), &image.Uniform{C: clearColor}, image.Point{}, draw.Src)
 			case 3: // Restore to previous - restore canvas to state before this frame
 				if prevCanvas != nil {
 					draw.Draw(canvas, bounds, prevCanvas, bounds.Min, draw.Src)
@@ -161,16 +169,21 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		Frames:     frames,
 		Delays:     delays,
 		LoopCount:  g.LoopCount,
-		Background: background,
+		Background: initialBackground,
 	}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
 	logx.Printf("gif: colors=%d\n", numColors)
 
-	return gif.Encode(writer, img, &gif.Options{
-		NumColors: numColors,
-	})
+	frames := []image.Image{img}
+
+	pal, err := makePalette(frames)
+	if err != nil {
+		return err
+	}
+
+	return gif.Encode(writer, toPaletted(img, pal), nil)
 }
 
 func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Common) error {
@@ -190,20 +203,25 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		return fmt.Errorf("gif: animation has no frames")
 	}
 
-	pal := color.Palette(palette.Plan9)
-
-	if numColors > 0 && numColors < len(pal) {
-		pal = pal[:numColors]
+	pal, err := makePalette(anim.Frames)
+	if err != nil {
+		return err
 	}
 
 	framesOut := make([]*image.Paletted, len(anim.Frames))
+	disposal := make([]byte, len(anim.Frames))
+
+	bounds := anim.Frames[0].Bounds()
 
 	for i, frame := range anim.Frames {
-		if frame == nil {
-			return fmt.Errorf("gif: frame %d is nil", i)
+		if frame.Bounds().Size() != bounds.Size() {
+			return fmt.Errorf("gif: frame %d has different dimensions", i)
 		}
 
 		framesOut[i] = toPaletted(frame, pal)
+
+		// Frames are complete composites. Clear each one so disappearing pixels cannot trail.
+		disposal[i] = gif.DisposalBackground
 	}
 
 	delays := make([]int, len(anim.Delays))
@@ -226,17 +244,19 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		delays[i] = (delay + 5) / 10
 	}
 
-	bounds := framesOut[0].Bounds()
-
 	backgroundIndex := uint8(0)
 
-	if len(pal) > 0 {
+	_, _, _, alpha := pal[len(pal)-1].RGBA()
+	if alpha == 0 {
+		backgroundIndex = uint8(len(pal) - 1)
+	} else {
 		backgroundIndex = uint8(pal.Index(anim.Background))
 	}
 
 	gifAnim := &gif.GIF{
 		Image:           framesOut,
 		Delay:           delays,
+		Disposal:        disposal,
 		LoopCount:       anim.LoopCount,
 		BackgroundIndex: backgroundIndex,
 		Config: image.Config{
@@ -249,30 +269,165 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 	return gif.EncodeAll(writer, gifAnim)
 }
 
-func toPaletted(img image.Image, pal color.Palette) *image.Paletted {
-	bounds := img.Bounds()
-
-	if paletted, ok := img.(*image.Paletted); ok && samePalette(paletted.Palette, pal) {
-		return paletted
+func frameBackground(frame *image.Paletted, background color.RGBA) color.RGBA {
+	for _, entry := range frame.Palette {
+		_, _, _, alpha := entry.RGBA()
+		if alpha == 0 {
+			return color.RGBA{}
+		}
 	}
 
-	out := image.NewPaletted(bounds, pal)
+	return background
+}
 
-	draw.FloydSteinberg.Draw(out, bounds, img, bounds.Min)
+func makePalette(frames []image.Image) (color.Palette, error) {
+	if numColors < 1 || numColors > 256 {
+		return nil, fmt.Errorf("gif: invalid color budget %d (want 1-256)", numColors)
+	}
+
+	// Reservoir sampling bounds the quantizer's memory while considering opaque pixels in every frame.
+	samples := image.NewRGBA(image.Rect(0, 0, paletteSamples, 1))
+	random := rand.New(rand.NewPCG(0, 0))
+
+	var (
+		opaque      int
+		transparent bool
+	)
+
+	for index, frame := range frames {
+		if frame == nil || frame.Bounds().Empty() {
+			return nil, fmt.Errorf("gif: frame %d is nil or empty", index)
+		}
+
+		bounds := frame.Bounds()
+
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				pixel := nrgbaAt(frame, x, y)
+				if pixel.A < 128 {
+					transparent = true
+
+					continue
+				}
+
+				slot := opaque
+				opaque++
+
+				if opaque > paletteSamples {
+					slot = random.IntN(opaque)
+				}
+
+				if slot < paletteSamples {
+					samples.SetRGBA(slot, 0, color.RGBA{R: pixel.R, G: pixel.G, B: pixel.B, A: 255})
+				}
+			}
+		}
+	}
+
+	budget := numColors
+
+	if transparent {
+		budget--
+	}
+
+	if opaque > 0 && budget == 0 {
+		return nil, fmt.Errorf("gif: --gif.colors=%d cannot represent both transparent and opaque pixels (need at least 2)", numColors)
+	}
+
+	pal := make(color.Palette, 0, numColors)
+
+	if opaque > 0 {
+		samples.Rect.Max.X = min(opaque, paletteSamples)
+
+		quantizer := quantize.MedianCutQuantizer{Aggregation: quantize.Mean}
+		quantized := quantizer.Quantize(pal[:0:budget], samples)
+
+		pal = pal[:len(quantized)]
+	}
+
+	if transparent {
+		pal = append(pal, color.NRGBA{})
+	}
+
+	return pal, nil
+}
+
+func toPaletted(img image.Image, pal color.Palette) *image.Paletted {
+	bounds := img.Bounds()
+	outputBounds := image.Rectangle{Max: bounds.Size()}
+	opaqueColors := len(pal)
+
+	_, _, _, alpha := pal[len(pal)-1].RGBA()
+	if alpha == 0 {
+		opaqueColors--
+	}
+
+	out := image.NewPaletted(outputBounds, pal)
+
+	if opaqueColors == 0 {
+		return out
+	}
+
+	// Dither opaque RGB only, then restore the exact alpha mask. The transparent
+	// entry must never compete with opaque colors in the nearest-color search.
+	normalized := image.NewNRGBA(outputBounds)
+	filler := color.NRGBAModel.Convert(pal[0]).(color.NRGBA)
+
+	for y := range outputBounds.Dy() {
+		for x := range outputBounds.Dx() {
+			pixel := nrgbaAt(img, x+bounds.Min.X, y+bounds.Min.Y)
+			if pixel.A < 128 {
+				pixel = filler
+			}
+
+			pixel.A = 255
+			normalized.SetNRGBA(x, y, pixel)
+		}
+	}
+
+	out.Palette = pal[:opaqueColors]
+
+	draw.FloydSteinberg.Draw(out, outputBounds, normalized, image.Point{})
+
+	out.Palette = pal
+
+	if opaqueColors < len(pal) {
+		for y := range outputBounds.Dy() {
+			for x := range outputBounds.Dx() {
+				pixel := nrgbaAt(img, x+bounds.Min.X, y+bounds.Min.Y)
+				if pixel.A < 128 {
+					out.SetColorIndex(x, y, uint8(opaqueColors))
+				}
+			}
+		}
+	}
 
 	return out
 }
 
-func samePalette(a, b color.Palette) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+func nrgbaAt(img image.Image, x, y int) color.NRGBA {
+	// Concrete accessors avoid boxing a color for each sampled or mapped pixel.
+	switch source := img.(type) {
+	case *image.NRGBA:
+		return source.NRGBAAt(x, y)
+	case *image.RGBA:
+		pixel := source.RGBAAt(x, y)
+		if pixel.A == 0 {
+			return color.NRGBA{}
 		}
-	}
 
-	return true
+		return color.NRGBA{
+			R: uint8(uint32(pixel.R) * 0xffff / uint32(pixel.A) >> 8),
+			G: uint8(uint32(pixel.G) * 0xffff / uint32(pixel.A) >> 8),
+			B: uint8(uint32(pixel.B) * 0xffff / uint32(pixel.A) >> 8),
+			A: pixel.A,
+		}
+	case *image.YCbCr:
+		pixel := source.YCbCrAt(x, y)
+		red, green, blue := color.YCbCrToRGB(pixel.Y, pixel.Cb, pixel.Cr)
+
+		return color.NRGBA{R: red, G: green, B: blue, A: 255}
+	default:
+		return color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+	}
 }

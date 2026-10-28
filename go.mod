@@ -7,6 +7,7 @@ require (
 	github.com/coalaura/webp v1.6.6
 	github.com/coalaura/xbm v0.0.4
 	github.com/coalaura/xpm v0.0.3
+	github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.2

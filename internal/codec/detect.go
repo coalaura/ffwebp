@@ -16,6 +16,12 @@ type Sniffed struct {
 	Codec      Codec
 }
 
+type candidate struct {
+	codec      Codec
+	confidence int
+	header     []byte
+}
+
 func (s *Sniffed) String() string {
 	var builder strings.Builder
 
@@ -35,6 +41,10 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 		codec, err := FindCodec(strings.ToLower(force), false)
 		if err != nil {
 			return nil, nil, err
+		}
+
+		if codec == nil {
+			return nil, nil, fmt.Errorf("unsupported input codec: %q", force)
 		}
 
 		return &Sniffed{
@@ -63,12 +73,6 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 	}
 
 	ra := bytes.NewReader(buf)
-
-	type candidate struct {
-		codec      Codec
-		confidence int
-		header     []byte
-	}
 
 	var (
 		best int
@@ -142,7 +146,7 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 }
 
 func Detect(output, override string) (Codec, string, error) {
-	ext := override
+	ext := strings.ToLower(override)
 
 	if ext == "" {
 		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(output), "."))
@@ -166,6 +170,10 @@ func Detect(output, override string) (Codec, string, error) {
 func FindCodec(ext string, requireEncode bool) (Codec, error) {
 	codec, ok := codecs[ext]
 	if ok {
+		if requireEncode && !codec.CanEncode() {
+			return nil, fmt.Errorf("decode-only output codec: %q", ext)
+		}
+
 		return codec, nil
 	}
 

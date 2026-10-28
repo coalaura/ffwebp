@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+type sequenceMatch struct {
+	path string
+	n    int
+}
+
 func hasSeq(s string) bool {
 	re := regexp.MustCompile(`%0?\d*d`)
 
@@ -31,7 +36,8 @@ func seqSpec(s string) (start, end, width int, zeroPad bool, ok bool) {
 		wstr := s[loc[2]:loc[3]]
 
 		if wstr != "" {
-			if w, err := strconv.Atoi(wstr); err == nil && w > 0 {
+			w, err := strconv.Atoi(wstr)
+			if err == nil && w > 0 {
 				width = w
 			}
 		}
@@ -48,7 +54,7 @@ func formatSeq(pattern string, idx, startNum int) string {
 		return pattern
 	}
 
-	n := idx + startNum - 1
+	n := idx + startNum
 
 	var num string
 
@@ -99,10 +105,10 @@ func expandSeq(pat string) ([]string, error) {
 	pre := regexp.QuoteMeta(base[:s])
 	suf := regexp.QuoteMeta(base[e:])
 
-	num := `\\d+`
+	num := `\d+`
 
 	if width > 0 {
-		num = fmt.Sprintf(`\\d{%d}`, width)
+		num = fmt.Sprintf(`\d{%d}`, width)
 	}
 
 	re := regexp.MustCompile("^" + pre + "(" + num + ")" + suf + "$")
@@ -118,12 +124,7 @@ func expandSeq(pat string) ([]string, error) {
 		return nil, err
 	}
 
-	type match struct {
-		path string
-		n    int
-	}
-
-	var out []match
+	var out []sequenceMatch
 
 	for _, e := range entries {
 		if e.IsDir() {
@@ -149,10 +150,12 @@ func expandSeq(pat string) ([]string, error) {
 			full = filepath.Join(filepath.Dir(pat), name)
 		}
 
-		out = append(out, match{path: full, n: n})
+		out = append(out, sequenceMatch{path: full, n: n})
 	}
 
-	sort.Slice(out, func(i, j int) bool { return out[i].n < out[j].n })
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].n < out[j].n
+	})
 
 	result := make([]string, len(out))
 
@@ -167,12 +170,8 @@ func hasTemplate(s string) bool {
 	if !strings.Contains(s, "{") {
 		return false
 	}
-	return strings.Contains(s, "{/.}") ||
-		strings.Contains(s, "{/}") ||
-		strings.Contains(s, "{.}") ||
-		strings.Contains(s, "{}") ||
-		strings.Contains(s, "{//}") ||
-		strings.Contains(s, "{#}")
+
+	return strings.Contains(s, "{/.}") || strings.Contains(s, "{/}") || strings.Contains(s, "{.}") || strings.Contains(s, "{}") || strings.Contains(s, "{//}") || strings.Contains(s, "{#}") || hasTileTemplate(s)
 }
 
 func trimExt(p string) string {
@@ -195,7 +194,7 @@ func formatTemplate(pattern, in string, idx, startNum int) string {
 
 	fullNoExt := trimExt(in)
 	baseNoExt := trimExt(base)
-	n := idx + startNum - 1
+	n := idx + startNum
 
 	r := strings.NewReplacer(
 		"{/.}", baseNoExt,

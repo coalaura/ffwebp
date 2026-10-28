@@ -25,6 +25,10 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type job struct {
+	i int
+}
+
 var Version = "dev"
 
 func main() {
@@ -48,7 +52,7 @@ func main() {
 		},
 		&cli.IntFlag{
 			Name:  "start-number",
-			Usage: "starting number for %%d output patterns",
+			Usage: "first output number for %d, padded sequences and {#}",
 			Value: 1,
 		},
 		&cli.StringFlag{
@@ -137,7 +141,8 @@ func main() {
 		},
 	}
 
-	if err := app.Run(context.Background(), os.Args); err != nil {
+	err := app.Run(context.Background(), os.Args)
+	if err != nil {
 		logx.Errorf("fatal: %v\n", err)
 	}
 }
@@ -249,12 +254,14 @@ func run(_ context.Context, cmd *cli.Command) error {
 				outDir = "."
 			}
 
-			if fi, err := os.Stat(outDir); err == nil {
+			fi, err := os.Stat(outDir)
+			if err == nil {
 				if !fi.IsDir() {
 					return fmt.Errorf("output must be a directory or pattern when multiple inputs: %s", filepath.ToSlash(output))
 				}
 			} else {
-				if err := os.MkdirAll(outDir, 0755); err != nil {
+				err = os.MkdirAll(outDir, 0755)
+				if err != nil {
 					return fmt.Errorf("create output directory: %w", err)
 				}
 			}
@@ -283,10 +290,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	logx.Printf("using %d threads\n", threads)
 
-	type job struct {
-		i int
-	}
-
 	var (
 		jobs = make(chan job)
 		errs = make(chan error, len(inputs))
@@ -300,7 +303,8 @@ func run(_ context.Context, cmd *cli.Command) error {
 				in := inputs[j.i]
 				out := outputs[j.i]
 
-				if err := processOne(in, out, cmd, &common, &logger); err != nil {
+				err := processOne(in, out, cmd, &common, &logger)
+				if err != nil {
 					errs <- fmt.Errorf("%s -> %s: %w", filepath.ToSlash(in), filepath.ToSlash(out), err)
 				} else {
 					errs <- nil
@@ -334,11 +338,22 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 func processOne(input, output string, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
 	var (
-		reader io.Reader    = os.Stdin
-		writer *countWriter = &countWriter{
-			w: os.Stdout,
-		}
+		reader    io.Reader = os.Stdin
+		inputFile *os.File
 	)
+
+	closeInput := func() error {
+		if inputFile == nil {
+			return nil
+		}
+
+		err := inputFile.Close()
+		inputFile = nil
+
+		return err
+	}
+
+	defer closeInput()
 
 	if input != "-" {
 		logx.Fprintf(logger, "opening input file %q\n", filepath.ToSlash(input))
@@ -348,8 +363,7 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 			return err
 		}
 
-		defer file.Close()
-
+		inputFile = file
 		reader = file
 	} else {
 		logx.Fprintf(logger, "reading input from <stdin>\n")
@@ -369,16 +383,13 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	var mappedFromDir bool
 
 	if output != "-" {
-		if fi, err := os.Stat(output); err == nil && fi.IsDir() {
+		fi, err := os.Stat(output)
+		if err == nil && fi.IsDir() {
 			name := filepath.Base(input)
 			output = filepath.Join(output, name)
 
 			mappedFromDir = true
 		} else if strings.HasSuffix(output, string(os.PathSeparator)) {
-			if err := os.MkdirAll(output, 0755); err != nil {
-				return err
-			}
-
 			name := filepath.Base(input)
 			output = filepath.Join(output, name)
 
@@ -430,31 +441,9 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		}
 
 		if !doSplit {
-			if output != "-" {
-				if cmd.Bool("skip-existing") {
-					if _, err := os.Stat(output); err == nil {
-						logx.Fprintf(logger, "skipping %q (already exists)\n", filepath.ToSlash(output))
-
-						return nil
-					}
-				}
-
-				logx.Fprintf(logger, "opening output file %q\n", filepath.ToSlash(output))
-
-				if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-					return err
-				}
-
-				file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-				if err != nil {
-					return err
-				}
-
-				defer file.Close()
-
-				writer = &countWriter{w: file}
-			} else {
-				logx.Fprintf(logger, "writing output to <stdout>\n")
+			skipped, err := skipOutput(output, cmd.Bool("skip-existing"), logger)
+			if err != nil || skipped {
+				return err
 			}
 		}
 	}
@@ -488,6 +477,11 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 			return errors.New("decoded animation is nil")
 		} else if len(anim.Frames) == 0 {
 			return errors.New("decoded animation has no frames")
+		}
+
+		err = closeInput()
+		if err != nil {
+			return err
 		}
 
 		if frameIdx >= 0 {
@@ -531,7 +525,8 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 			logx.Fprintf(logger, "decoded animation: %d frames %dx%d %s in %s\n", len(anim.Frames), first.Bounds().Dx(), first.Bounds().Dy(), colorModel(first), time.Since(t0).Truncate(time.Millisecond))
 
-			if thumbnail := cmd.Uint("thumbnail"); thumbnail > 0 {
+			thumbnail := cmd.Uint("thumbnail")
+			if thumbnail > 0 {
 				t2 := time.Now()
 
 				for i, frame := range anim.Frames {
@@ -572,12 +567,15 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 			t2 := time.Now()
 
-			err := animEncoder.EncodeAll(writer, anim, localOpts)
+			written, err := writeOutput(output, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
+				return animEncoder.EncodeAll(writer, anim, localOpts)
+			})
+
 			if err != nil {
 				return err
 			}
 
-			logx.Fprintf(logger, "encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
+			logx.Fprintf(logger, "encoded %d KiB in %s\n", (written+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
 
 			return nil
 		}
@@ -594,9 +592,15 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 		}
 	}
 
+	err = closeInput()
+	if err != nil {
+		return err
+	}
+
 	logx.Fprintf(logger, "decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))
 
-	if thumbnail := cmd.Uint("thumbnail"); thumbnail > 0 {
+	thumbnail := cmd.Uint("thumbnail")
+	if thumbnail > 0 {
 		t2 := time.Now()
 
 		img = resize.Thumbnail(thumbnail, thumbnail, img)
@@ -635,45 +639,37 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 			var tileOut string
 
-			if hasTileTemplate(tileOut) {
-				tileOut = formatTileTemplate(tileOut, row, col, i)
+			if hasTileTemplate(output) {
+				tileOut = formatTileTemplate(output, row, col, i)
 			} else {
 				tileOut = splitOutputPath(output, row, col)
 			}
 
-			if err := os.MkdirAll(filepath.Dir(tileOut), 0755); err != nil {
-				return err
-			}
+			written, err := writeOutput(tileOut, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
+				return oCodec.Encode(writer, tile, localOpts)
+			})
 
-			file, err := os.OpenFile(tileOut, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
 
-			cw := &countWriter{w: file}
-
-			encErr := oCodec.Encode(cw, tile, localOpts)
-
-			closeErr := file.Close()
-			if encErr != nil {
-				return encErr
+			if written > 0 {
+				logx.Fprintf(logger, "wrote tile r=%d c=%d -> %q\n", row, col, filepath.ToSlash(tileOut))
 			}
-
-			if closeErr != nil {
-				return closeErr
-			}
-
-			logx.Fprintf(logger, "wrote tile r=%d c=%d -> %q\n", row, col, filepath.ToSlash(tileOut))
 		}
 
 		return nil
 	}
 
-	if err := oCodec.Encode(writer, img, localOpts); err != nil {
+	written, err := writeOutput(output, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
+		return oCodec.Encode(writer, img, localOpts)
+	})
+
+	if err != nil {
 		return err
 	}
 
-	logx.Fprintf(logger, "encoded %d KiB in %s\n", (writer.n+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
+	logx.Fprintf(logger, "encoded %d KiB in %s\n", (written+1023)/1024, time.Since(t2).Truncate(time.Millisecond))
 
 	return nil
 }
@@ -684,7 +680,9 @@ func parseSplit(v string) (x, y int, ok bool, err error) {
 		return 0, 0, false, nil
 	}
 
-	for _, sep := range []string{"x", "X", ":", ","} {
+	separators := []string{"x", "X", ":", ","}
+
+	for _, sep := range separators {
 		parts := strings.Split(v, sep)
 		if len(parts) != 2 {
 			continue
