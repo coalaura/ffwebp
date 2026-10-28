@@ -27,6 +27,7 @@ require (
 	github.com/spakin/netpbm v1.3.2
 	github.com/urfave/cli/v3 v3.14.0
 	golang.org/x/image v0.47.0
+	golang.org/x/sys v0.49.0
 	gotest.tools/v3 v3.5.2
 )
 
@@ -40,5 +41,4 @@ require (
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 )

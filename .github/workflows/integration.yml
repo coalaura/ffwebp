@@ -1,0 +1,42 @@
+name: Integration tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Integration tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux-gnu
+          - os: windows-latest
+            target: x86_64-windows-gnu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run integration tests
+        env:
+          CGO_ENABLED: 1
+          CC: zig cc -target ${{ matrix.target }}
+          CXX: zig c++ -target ${{ matrix.target }}
+        run: go test -count=1 -v ./integration

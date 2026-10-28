@@ -50,6 +50,10 @@ ffwebp -i input.jpg -o output.webp
 
 The output file, directory or pattern can be supplied as a positional argument instead of `-o`/`--output`. Use only one form per command. If neither is supplied, output defaults to stdout.
 
+File output is encoded into a temporary file beside the destination before publication. New files use mode `0644` filtered by the process umask; replacements preserve existing permission bits. `--skip-existing` never replaces an occupied destination, including one created during conversion. It prefers atomic no-replace rename (Linux/macOS/Windows) or hard-link publication. If neither is available, it exclusively creates the destination and copies the completed encoding: other readers can see a partial file during that copy, but existing files are never truncated. A failed copy removes its newly created output.
+
+Batch destinations, including codec-driven extensions and split tiles, are resolved before workers start. Conflicting outputs and outputs that alias another job's input are rejected; replacing a job's own input is supported. Validation resolves existing symlinks and file aliases and folds Windows/macOS path case conservatively. It cannot protect against unrelated processes changing path aliases after validation. Sequence padding is a minimum width: `%03d` matches both `001` and `1000`, sorted numerically.
+
 Pipe stdin/stdout
 ```bash
 cat input.png | ffwebp -o out.jpg
@@ -92,6 +96,7 @@ If `--codec` is omitted, the output codec is chosen from the output file extensi
 
 ### Format limitations
 
+- CUR output (`.cur` or `--codec cur`) uses a genuine type-2 cursor header and the encoder's default hotspot `(0, 0)`. Input hotspots are not preserved. ICO output retains its type-1 icon header.
 - AVIF supports animated input and output, including `--frame`, `--time`, and conversion to other animation-capable codecs. Frame durations are rounded to milliseconds. The pinned AVIF decoder does not expose loop counts, so decoded animations default to infinite looping. Its encoder cannot express single-play animations; those inputs produce an error instead of silently looping forever.
 - JPEG XL currently uses the first frame. The pinned library exposes animated decoding but returns raw frame ticks without the animation tick rate or loop count, so reliable animation timing requires an upstream API change.
 - PNG uses `github.com/gen2brain/pngn`, preserving palette transparency, grayscale and 16-bit pixels with strict decoding defaults. `--png.compression` remains `0=none`, `1=default` (the default), `2=best speed`, `3=best compression`.

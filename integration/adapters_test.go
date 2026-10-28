@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
@@ -25,6 +26,59 @@ type svgSizeCase struct {
 	flags  []string
 	width  int
 	height int
+}
+
+type iconHeaderCase struct {
+	name   string
+	ext    string
+	forced string
+	kind   uint16
+}
+
+func TestCLI_IconHeaders(t *testing.T) {
+	cases := []iconHeaderCase{
+		{name: "ico", ext: "ico", kind: 1},
+		{name: "cur", ext: "cur", kind: 2},
+		{name: "forced-cur", ext: "ico", forced: "cur", kind: 2},
+		{name: "forced-ico", ext: "cur", forced: "ico", kind: 1},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			input := filepath.Join(directory, "input.png")
+			output := filepath.Join(directory, "encoded."+test.ext)
+			back := filepath.Join(directory, "decoded.png")
+			expected := losslessImage()
+
+			writePNG(t, input, expected)
+
+			arguments := []string{"-s", "-i", input, "-o", output}
+
+			if test.forced != "" {
+				arguments = append(arguments, "--codec", test.forced)
+				output = filepath.Join(directory, "encoded."+test.forced)
+			}
+
+			run(t, icmd.Command(executable, arguments...))
+
+			data, err := os.ReadFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(data) < 22 || binary.LittleEndian.Uint16(data[:2]) != 0 || binary.LittleEndian.Uint16(data[2:4]) != test.kind || binary.LittleEndian.Uint16(data[4:6]) != 1 {
+				t.Fatalf("invalid icon/cursor directory: %x", data)
+			}
+
+			if test.kind == 2 && binary.LittleEndian.Uint32(data[10:14]) != 0 {
+				t.Fatal("CUR default hotspot is not (0, 0)")
+			}
+
+			run(t, icmd.Command(executable, "-s", "-i", output, "-o", back))
+			assertPixels(t, readPNG(t, back), expected)
+		})
+	}
 }
 
 func TestCLI_Lossless(t *testing.T) {

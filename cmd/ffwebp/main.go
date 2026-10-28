@@ -214,7 +214,10 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	startNum := cmd.Int("start-number")
 
-	var outputs []string
+	var (
+		outputs         []string
+		outputDirectory bool
+	)
 
 	if len(inputs) == 1 {
 		out := output
@@ -259,12 +262,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 				if !fi.IsDir() {
 					return fmt.Errorf("output must be a directory or pattern when multiple inputs: %s", filepath.ToSlash(output))
 				}
-			} else {
-				err = os.MkdirAll(outDir, 0755)
-				if err != nil {
-					return fmt.Errorf("create output directory: %w", err)
-				}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return err
 			}
+
+			outputDirectory = true
 
 			outs := make([]string, len(inputs))
 
@@ -276,8 +278,26 @@ func run(_ context.Context, cmd *cli.Command) error {
 		}
 	}
 
+	plans := make([]outputPlan, len(inputs))
+
+	for index := range inputs {
+		plan, err := resolveOutput(inputs[index], outputs[index], outputDirectory, cmd)
+		if err != nil {
+			return err
+		}
+
+		plans[index] = plan
+	}
+
+	if !cmd.Bool("play") {
+		err := validateOutputs(inputs, plans)
+		if err != nil {
+			return err
+		}
+	}
+
 	if len(inputs) == 1 {
-		return processOne(inputs[0], outputs[0], cmd, &common, nil)
+		return processOne(inputs[0], &plans[0], cmd, &common, nil)
 	}
 
 	threads := cmd.Int("threads")
@@ -301,9 +321,9 @@ func run(_ context.Context, cmd *cli.Command) error {
 				var logger bytes.Buffer
 
 				in := inputs[j.i]
-				out := outputs[j.i]
+				out := plans[j.i].path
 
-				err := processOne(in, out, cmd, &common, &logger)
+				err := processOne(in, &plans[j.i], cmd, &common, &logger)
 				if err != nil {
 					errs <- fmt.Errorf("%s -> %s: %w", filepath.ToSlash(in), filepath.ToSlash(out), err)
 				} else {
@@ -336,7 +356,15 @@ func run(_ context.Context, cmd *cli.Command) error {
 	return first
 }
 
-func processOne(input, output string, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
+func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
+	output := plan.path
+	doSplit := len(plan.tiles) > 0
+	doPlay := cmd.Bool("play")
+	oCodec := plan.codec
+
+	localOpts := *common
+	localOpts.OutputExtension = plan.extension
+
 	var (
 		reader    io.Reader = os.Stdin
 		inputFile *os.File
@@ -380,65 +408,8 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 
 	logx.Fprintf(logger, "sniffed codec: %s (%q, forced=%v)\n", sniffed.Codec, sniffed, forced != "")
 
-	var mappedFromDir bool
-
-	if output != "-" {
-		fi, err := os.Stat(output)
-		if err == nil && fi.IsDir() {
-			name := filepath.Base(input)
-			output = filepath.Join(output, name)
-
-			mappedFromDir = true
-		} else if strings.HasSuffix(output, string(os.PathSeparator)) {
-			name := filepath.Base(input)
-			output = filepath.Join(output, name)
-
-			mappedFromDir = true
-		}
-	}
-
-	splitX, splitY, doSplit, err := parseSplit(cmd.String("split"))
-	if err != nil {
-		return err
-	}
-
-	doPlay := cmd.Bool("play")
-
-	if doSplit {
-		if doPlay {
-			return errors.New("--split cannot be used with --play")
-		}
-
-		if output == "-" {
-			return errors.New("--split requires file output (not stdout)")
-		}
-	}
-
-	localOpts := *common
-
-	var (
-		oCodec codec.Codec
-		oExt   string
-	)
-
 	if !doPlay {
-		oCodec, oExt, err = codec.Detect(output, cmd.String("codec"))
-		if err != nil {
-			return err
-		}
-
-		localOpts.OutputExtension = oExt
-
 		logx.Fprintf(logger, "output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
-
-		if output != "-" {
-			curExt := strings.TrimPrefix(filepath.Ext(output), ".")
-
-			if mappedFromDir || curExt == "" || curExt != oExt {
-				base := strings.TrimSuffix(output, filepath.Ext(output))
-				output = base + "." + oExt
-			}
-		}
 
 		if !doSplit {
 			skipped, err := skipOutput(output, cmd.Bool("skip-existing"), logger)
@@ -628,22 +599,15 @@ func processOne(input, output string, cmd *cli.Command, common *opts.Common, log
 	t2 := time.Now()
 
 	if doSplit {
-		tiles, err := resize.Split(img, splitX, splitY)
+		tiles, err := resize.Split(img, plan.splitX, plan.splitY)
 		if err != nil {
 			return err
 		}
 
 		for i, tile := range tiles {
-			row := i / splitX
-			col := i % splitX
-
-			var tileOut string
-
-			if hasTileTemplate(output) {
-				tileOut = formatTileTemplate(output, row, col, i)
-			} else {
-				tileOut = splitOutputPath(output, row, col)
-			}
+			row := i / plan.splitX
+			col := i % plan.splitX
+			tileOut := plan.tiles[i]
 
 			written, err := writeOutput(tileOut, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
 				return oCodec.Encode(writer, tile, localOpts)

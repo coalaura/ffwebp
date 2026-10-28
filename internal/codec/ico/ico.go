@@ -113,6 +113,11 @@ func (impl) Decode(r io.Reader) (image.Image, error) {
 	return best, nil
 }
 
-func (impl) Encode(w io.Writer, img image.Image, _ opts.Common) error {
+func (impl) Encode(w io.Writer, img image.Image, options opts.Common) error {
+	if options.OutputExtension == "cur" {
+		// The cursor encoder defaults to hotspot (0, 0).
+		return cur.Encode(w, img)
+	}
+
 	return ico.Encode(w, img)
 }

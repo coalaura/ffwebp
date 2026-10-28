@@ -2,8 +2,13 @@ package integration
 
 import (
 	"bytes"
+	"fmt"
+	"image"
+	"image/color"
+	"image/gif"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"gotest.tools/v3/icmd"
@@ -12,6 +17,14 @@ import (
 type filenamePatternCase struct {
 	output string
 	want   string
+}
+
+type destinationConflictCase struct {
+	name   string
+	inputs []string
+	output string
+	flags  []string
+	err    string
 }
 
 func TestCLI_OutputSafety(t *testing.T) {
@@ -91,5 +104,203 @@ func TestCLI_FilenamePatterns(t *testing.T) {
 
 			assertPixels(t, readPNG(t, filepath.Join(dir, pattern.want)), expected)
 		})
+	}
+}
+
+func TestCLI_OutputPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits and umask are not supported on Windows")
+	}
+
+	output := filepath.Join(t.TempDir(), "out.png")
+	command := icmd.Command("sh", "-c", `umask 077; exec "$@"`, "ffwebp-test", executable, "-s", "-i", "fixtures/inputs/alpha.png", "-o", output)
+
+	run(t, command)
+	assertPermissions(t, output, 0600)
+
+	err := os.Chmod(output, 0640)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run(t, command)
+	assertPermissions(t, output, 0640)
+}
+
+func TestCLI_SamePath(t *testing.T) {
+	extensions := []string{"png", "gif"}
+
+	for _, extension := range extensions {
+		t.Run(extension, func(t *testing.T) {
+			source := "fixtures/inputs/alpha.png"
+
+			if extension == "gif" {
+				source = "fixtures/inputs/disposal.gif"
+			}
+
+			data, err := os.ReadFile(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			output := filepath.Join(t.TempDir(), "same."+extension)
+			writeBytes(t, output, data)
+
+			run(t, icmd.Command(executable, "-s", "-i", output, "-o", output))
+
+			if extension == "png" {
+				assertPixels(t, readPNG(t, output), readPNG(t, source))
+
+				return
+			}
+
+			encoded, err := os.ReadFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			animation, err := gif.DecodeAll(bytes.NewReader(encoded))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(animation.Image) != 4 {
+				t.Fatalf("same-path animation has %d frames", len(animation.Image))
+			}
+		})
+	}
+}
+
+func TestCLI_SkipAnimationAndTiles(t *testing.T) {
+	directory := t.TempDir()
+	animation := filepath.Join(directory, "out.gif")
+	firstTile := filepath.Join(directory, "tile-0.png")
+	secondTile := filepath.Join(directory, "tile-1.png")
+
+	sentinel := []byte("preserve existing output")
+
+	writeBytes(t, animation, sentinel)
+	writeBytes(t, firstTile, sentinel)
+
+	run(t, icmd.Command(executable, "-s", "-i", "fixtures/inputs/disposal.gif", "-o", animation, "--skip-existing"))
+	run(t, icmd.Command(executable, "-s", "-i", "fixtures/inputs/alpha.png", "-o", filepath.Join(directory, "tile-{i}.png"), "--split", "2x1", "--skip-existing"))
+
+	paths := []string{animation, firstTile}
+
+	for _, path := range paths {
+		actual, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(actual, sentinel) {
+			t.Fatalf("skipped output changed: %q, %v", actual, err)
+		}
+	}
+
+	if readPNG(t, secondTile).Bounds() != image.Rect(0, 0, 32, 47) {
+		t.Fatal("missing or incorrectly sized second tile")
+	}
+
+	// An absent destination is published too, for both static and animated paths.
+	err := os.Remove(animation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run(t, icmd.Command(executable, "-s", "-i", "fixtures/inputs/disposal.gif", "-o", animation, "--skip-existing"))
+
+	data, err := os.ReadFile(animation)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decoded, err := gif.DecodeAll(bytes.NewReader(data))
+	if err != nil || len(decoded.Image) != 4 {
+		t.Fatalf("animation publication failed: %v", err)
+	}
+}
+
+func TestCLI_PaddedSequenceOverflow(t *testing.T) {
+	directory := t.TempDir()
+
+	numbers := []int{1000, 10, 999, 1}
+	colors := map[int]color.NRGBA{
+		1:    {R: 255, A: 255},
+		10:   {G: 255, A: 255},
+		999:  {B: 255, A: 255},
+		1000: {R: 255, G: 255, A: 255},
+	}
+
+	for _, number := range numbers {
+		img := image.NewNRGBA(image.Rect(0, 0, 2, 1))
+		img.SetNRGBA(0, 0, colors[number])
+		img.SetNRGBA(1, 0, colors[number])
+
+		writePNG(t, filepath.Join(directory, fmt.Sprintf("%03d.png", number)), img)
+	}
+
+	output := filepath.Join(directory, "out-%03d-{i}.png")
+
+	run(t, icmd.Command(executable, "-s", "-i", filepath.Join(directory, "%03d.png"), "-o", output, "--start-number", "7", "--split", "2x1"))
+
+	ordered := []int{1, 10, 999, 1000}
+
+	for index, number := range ordered {
+		for tile := range 2 {
+			actual := readPNG(t, filepath.Join(directory, fmt.Sprintf("out-%03d-%d.png", index+7, tile)))
+			if actual.Bounds() != image.Rect(0, 0, 1, 1) || color.NRGBAModel.Convert(actual.At(0, 0)) != colors[number] {
+				t.Fatalf("incorrect sequence order or tile at output %d", index+7)
+			}
+		}
+	}
+}
+
+func TestCLI_DestinationConflicts(t *testing.T) {
+	cases := []destinationConflictCase{
+		{name: "directory", inputs: []string{"photo.jpg", "photo.png"}, output: "out", flags: []string{"--codec", "webp"}, err: "conflicting destination"},
+		{name: "template", inputs: []string{"photo.jpg", "photo.png"}, output: "out/{/.}.webp", err: "conflicting destination"},
+		{name: "split-batch", inputs: []string{"photo.jpg", "photo.png"}, output: "out/{/.}-{i}.webp", flags: []string{"--split", "2x1"}, err: "conflicting destination"},
+		{name: "split-template", inputs: []string{"photo.png"}, output: "out/tile-{r}.png", flags: []string{"--split", "2x1"}, err: "conflicting destination"},
+		{name: "other-input", inputs: []string{"001.png", "002.png"}, output: "%03d.png", flags: []string{"--start-number", "2"}, err: "would overwrite input"},
+		{name: "split-input", inputs: []string{"tile.png", "tile_r0_c0.png"}, output: "{/.}.png", flags: []string{"--split", "1x1"}, err: "would overwrite input"},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			sentinel := []byte("validation must precede decoding and writing")
+
+			for _, input := range test.inputs {
+				writeBytes(t, filepath.Join(directory, input), sentinel)
+			}
+
+			arguments := []string{"-s", "-i", filepath.Join(directory, "*.*"), "-o", filepath.ToSlash(directory) + "/" + test.output}
+			arguments = append(arguments, test.flags...)
+
+			result := icmd.RunCmd(icmd.Command(executable, arguments...))
+			result.Assert(t, icmd.Expected{ExitCode: 1, Err: test.err})
+
+			entries, err := os.ReadDir(directory)
+			if err != nil || len(entries) != len(test.inputs) {
+				t.Fatalf("validation created output: %v, %v", entries, err)
+			}
+
+			for _, input := range test.inputs {
+				actual, err := os.ReadFile(filepath.Join(directory, input))
+				if err != nil || !bytes.Equal(actual, sentinel) {
+					t.Fatalf("validation changed input %q: %v", input, err)
+				}
+			}
+		})
+	}
+}
+
+func assertPermissions(t *testing.T, path string, expected os.FileMode) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.Mode().Perm() != expected {
+		t.Fatalf("permissions: got %04o, want %04o", info.Mode().Perm(), expected)
 	}
 }

@@ -108,7 +108,7 @@ func expandSeq(pat string) ([]string, error) {
 	num := `\d+`
 
 	if width > 0 {
-		num = fmt.Sprintf(`\d{%d}`, width)
+		num = fmt.Sprintf(`\d{%d,}`, width)
 	}
 
 	re := regexp.MustCompile("^" + pre + "(" + num + ")" + suf + "$")
