@@ -1,0 +1,4 @@
+fixtures/** -text linguist-generated=true
+fixtures/inputs/** -diff
+fixtures/reference/** -diff
+sources/** -text

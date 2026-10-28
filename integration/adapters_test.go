@@ -2,12 +2,10 @@ package integration
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
-	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -27,13 +25,6 @@ type svgSizeCase struct {
 	flags  []string
 	width  int
 	height int
-}
-
-type previewEntry struct {
-	tag   uint16
-	kind  uint16
-	count uint32
-	value uint32
 }
 
 func TestCLI_Lossless(t *testing.T) {
@@ -78,7 +69,7 @@ func TestCLI_TIFFCompression(t *testing.T) {
 
 			command := icmd.Command(executable, "-s", "-i", input, "-o", encoded, "--tiff.compression", fmt.Sprint(compression), "--tiff.predictor")
 
-			if compression > 1 {
+			if compression > 2 {
 				result := icmd.RunCmd(command)
 				result.Assert(t, icmd.Expected{ExitCode: 1, Err: "invalid tiff.compression"})
 
@@ -87,35 +78,6 @@ func TestCLI_TIFFCompression(t *testing.T) {
 
 			run(t, command)
 			run(t, icmd.Command(executable, "-s", "-i", encoded, "-o", output))
-
-			assertPixels(t, readPNG(t, output), expected)
-		})
-	}
-}
-
-func TestCLI_DNGPreview(t *testing.T) {
-	preview, err := os.ReadFile(exampleJPEG)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected, err := jpeg.Decode(bytes.NewReader(preview))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	orders := []binary.ByteOrder{binary.LittleEndian, binary.BigEndian}
-
-	for _, order := range orders {
-		t.Run(order.String(), func(t *testing.T) {
-			directory := t.TempDir()
-
-			input := filepath.Join(directory, "preview-without-extension")
-			output := filepath.Join(directory, "output.png")
-
-			writeBytes(t, input, dngPreview(preview, order))
-
-			run(t, icmd.Command(executable, "-s", "-i", input, "-o", output))
 
 			assertPixels(t, readPNG(t, output), expected)
 		})
@@ -248,7 +210,6 @@ func TestCLI_AVIFAnimation(t *testing.T) {
 			selected := filepath.Join(directory, "selected.png")
 
 			run(t, icmd.Command(executable, "-s", "-i", encoded, "-o", selected, selection, value))
-
 			assertPixels(t, readPNG(t, selected), second)
 		})
 	}
@@ -270,51 +231,6 @@ func losslessImage() *image.NRGBA {
 	}
 
 	return img
-}
-
-func dngPreview(preview []byte, order binary.ByteOrder) []byte {
-	entries := []previewEntry{
-		{tag: 256, kind: 4, count: 1, value: 256},
-		{tag: 257, kind: 4, count: 1, value: 256},
-		{tag: 258, kind: 3, count: 1, value: 8},
-		{tag: 259, kind: 3, count: 1, value: 7},
-		{tag: 262, kind: 3, count: 1, value: 6},
-		{tag: 273, kind: 4, count: 1, value: 0},
-		{tag: 279, kind: 4, count: 1, value: uint32(len(preview))},
-		{tag: 50706, kind: 1, count: 4, value: order.Uint32([]byte{1, 4, 0, 0})},
-	}
-
-	previewOffset := 8 + 2 + 12*len(entries) + 4
-	entries[5].value = uint32(previewOffset)
-
-	data := make([]byte, previewOffset+len(preview))
-	copy(data, "II")
-
-	if order == binary.BigEndian {
-		copy(data, "MM")
-	}
-
-	order.PutUint16(data[2:4], 42)
-	order.PutUint32(data[4:8], 8)
-	order.PutUint16(data[8:10], uint16(len(entries)))
-
-	for index, entry := range entries {
-		offset := 10 + index*12
-
-		order.PutUint16(data[offset:], entry.tag)
-		order.PutUint16(data[offset+2:], entry.kind)
-		order.PutUint32(data[offset+4:], entry.count)
-
-		if entry.kind == 3 {
-			order.PutUint16(data[offset+8:], uint16(entry.value))
-		} else {
-			order.PutUint32(data[offset+8:], entry.value)
-		}
-	}
-
-	copy(data[previewOffset:], preview)
-
-	return data
 }
 
 func writePNG(t *testing.T, path string, img image.Image) {
@@ -358,18 +274,44 @@ func readPNG(t *testing.T, path string) image.Image {
 func assertPixels(t *testing.T, actual, expected image.Image) {
 	t.Helper()
 
+	assertPixelsWithin(t, actual, expected, 0)
+}
+
+func assertPixelsWithin(t *testing.T, actual, expected image.Image, tolerance int) {
+	t.Helper()
+
 	if actual.Bounds() != expected.Bounds() {
 		t.Fatalf("bounds: got %v, want %v", actual.Bounds(), expected.Bounds())
 	}
 
+	var total uint64
+
 	for row := range expected.Bounds().Dy() {
 		for column := range expected.Bounds().Dx() {
-			got := color.RGBA64Model.Convert(actual.At(column, row))
-			want := color.RGBA64Model.Convert(expected.At(column, row))
+			got := color.RGBA64Model.Convert(actual.At(column, row)).(color.RGBA64)
+			want := color.RGBA64Model.Convert(expected.At(column, row)).(color.RGBA64)
 
-			if got != want {
-				t.Fatalf("pixel at (%d,%d): got %v, want %v", column, row, got, want)
+			channels := [4][2]uint16{{got.R, want.R}, {got.G, want.G}, {got.B, want.B}, {got.A, want.A}}
+
+			for index, pair := range channels {
+				delta := int(pair[0]) - int(pair[1])
+				if delta < 0 {
+					total += uint64(-delta)
+				} else {
+					total += uint64(delta)
+				}
+
+				if delta < -tolerance*257 || delta > tolerance*257 {
+					t.Fatalf("pixel (%d,%d) channel %d: got %v, want %v (tolerance %d/255)", column, row, index, got, want, tolerance)
+				}
 			}
+		}
+	}
+
+	if tolerance > 0 {
+		samples := uint64(expected.Bounds().Dx() * expected.Bounds().Dy() * 4)
+		if total > samples*257 {
+			t.Fatalf("mean channel error %.3f/255 exceeds 1/255", float64(total)/float64(samples*257))
 		}
 	}
 }

@@ -1,0 +1,545 @@
+{
+  "source_sha256": "894d8eecadcdd8d11a6ccf5e67d5ceff05e5d632f8569274c6a4a23ca2bab6f2",
+  "cases": [
+    {
+      "file": "inputs/mars-rgb.png",
+      "purpose": "RGB photograph; shared small source",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha.png",
+      "purpose": "RGBA with zero, partial and full alpha; odd dimensions",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/gray.png",
+      "purpose": "8-bit grayscale",
+      "reference": [
+        "reference/40b7a7c6cf36bcda.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/gray16.png",
+      "purpose": "16-bit grayscale with significant low bytes",
+      "reference": [
+        "reference/21b6080d5e62a5dd.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/palette-alpha.png",
+      "purpose": "2-bit indexed PNG with tRNS alpha",
+      "reference": [
+        "reference/a36f5b844b7bae66.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/palette.gif",
+      "purpose": "Single-frame indexed GIF with transparency",
+      "reference": [
+        "reference/f9b7c5420e2d571e.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/interlaced.png",
+      "purpose": "Adam7 interlacing",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars-baseline.jpg",
+      "purpose": "mars baseline",
+      "reference": [
+        "reference/7959db5688baa241.png"
+      ],
+      "tolerance": 12
+    },
+    {
+      "file": "inputs/mars-progressive.jpeg",
+      "purpose": "mars progressive",
+      "reference": [
+        "reference/95d17fb5dfeb6cde.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/gray.jpg",
+      "purpose": "gray",
+      "reference": [
+        "reference/5a9c91dd263714f1.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/cmyk.jpg",
+      "purpose": "cmyk",
+      "reference": [
+        "reference/36df102d9a64d5d2.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/mars.bmp",
+      "purpose": "mars",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/palette.bmp",
+      "purpose": "palette",
+      "reference": [
+        "reference/5f8f7445588daa75.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars.pcx",
+      "purpose": "mars",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/palette.pcx",
+      "purpose": "palette",
+      "reference": [
+        "reference/5f8f7445588daa75.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha.qoi",
+      "purpose": "alpha",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars.qoi",
+      "purpose": "mars",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha.tga",
+      "purpose": "alpha",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha-rle.tga",
+      "purpose": "alpha rle",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars-lossy.webp",
+      "purpose": "mars lossy",
+      "reference": [
+        "reference/deb887bd33451741.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha-lossless.webp",
+      "purpose": "alpha lossless",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/rgb-uncompressed.tif",
+      "purpose": "rgb uncompressed",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha-deflate.tiff",
+      "purpose": "alpha deflate",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/rgb-lzw.tiff",
+      "purpose": "rgb lzw",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/rgb-jpeg.tiff",
+      "purpose": "rgb jpeg",
+      "reference": [
+        "reference/62bdaccccfd9d39b.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/cmyk.tiff",
+      "purpose": "cmyk",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/gray16.tiff",
+      "purpose": "gray16",
+      "reference": [
+        "reference/21b6080d5e62a5dd.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/bilevel-group4.tiff",
+      "purpose": "bilevel group4",
+      "reference": [
+        "reference/4016ea75c6f18665.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/bilevel-group4-white.tiff",
+      "purpose": "CCITT Group 4 with WhiteIsZero polarity",
+      "reference": [
+        "reference/4016ea75c6f18665.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/multipage.tiff",
+      "purpose": "TIFF converts first page, not a document animation",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.pbm",
+      "purpose": "pbm independent ImageMagick encoding",
+      "reference": [
+        "reference/56810764e78a868a.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.pgm",
+      "purpose": "pgm independent ImageMagick encoding",
+      "reference": [
+        "reference/40b7a7c6cf36bcda.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.ppm",
+      "purpose": "ppm independent ImageMagick encoding",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.pam",
+      "purpose": "pam independent ImageMagick encoding",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.pnm",
+      "purpose": "pnm independent ImageMagick encoding",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.xbm",
+      "purpose": "xbm independent ImageMagick encoding",
+      "reference": [
+        "reference/56810764e78a868a.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.xpm",
+      "purpose": "xpm independent ImageMagick encoding",
+      "reference": [
+        "reference/4d202438340f1ac2.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.psd",
+      "purpose": "psd independent ImageMagick encoding",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/pattern.psb",
+      "purpose": "psb independent ImageMagick encoding",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/ascii.pbm",
+      "purpose": "PNM ASCII PBM",
+      "reference": [
+        "reference/56810764e78a868a.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/ascii.pgm",
+      "purpose": "PNM ASCII PGM",
+      "reference": [
+        "reference/40b7a7c6cf36bcda.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/ascii.ppm",
+      "purpose": "PNM ASCII PPM",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/gray16.pgm",
+      "purpose": "PNM 16-bit binary samples",
+      "reference": [
+        "reference/21b6080d5e62a5dd.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/multi-png.ico",
+      "purpose": "Select largest entry; PNG payload",
+      "reference": [
+        "reference/3cc82f364809ea52.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dib.ico",
+      "purpose": "ICO bitmap payload",
+      "reference": [
+        "reference/3cc82f364809ea52.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/cursor.cur",
+      "purpose": "Real CUR header and bitmap payload",
+      "reference": [
+        "reference/82a7f089ec639eb3.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha.ff",
+      "purpose": "Farbfeld 16-bit RGBA",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/alpha.jxl",
+      "purpose": "JPEG XL lossless alpha",
+      "reference": [
+        "reference/595542e0bbfff4b4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars.heic",
+      "purpose": "HEVC in HEIF container (heic/heif aliases)",
+      "reference": [
+        "reference/0817c6cc70eae17d.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/mars.avif",
+      "purpose": "AV1 still image in AVIF container",
+      "reference": [
+        "reference/934a3bc9fbcde9aa.png"
+      ],
+      "tolerance": 3
+    },
+    {
+      "file": "inputs/preview-le.dng",
+      "purpose": "Synthetic DNG JPEG preview; little endian",
+      "reference": [
+        "reference/7959db5688baa241.png"
+      ],
+      "tolerance": 12
+    },
+    {
+      "file": "inputs/preview-be.dng",
+      "purpose": "Synthetic DNG JPEG preview; big endian",
+      "reference": [
+        "reference/7959db5688baa241.png"
+      ],
+      "tolerance": 12
+    },
+    {
+      "file": "inputs/shapes.svg",
+      "purpose": "Native vector shapes; no fonts, network or embedded raster",
+      "reference": [
+        "reference/69f9ccf32d74954c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/mars.xcf",
+      "purpose": "GIMP-authored RGB document with legacy normal layer",
+      "reference": [
+        "reference/1e13a9417759327c.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/disposal.gif",
+      "purpose": "GIF partial frames, local palettes, transparency, disposal 1/3/2",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/a2e61dcc3843bb5f.png",
+        "reference/01f84468e3f9ae96.png",
+        "reference/1c7ca64c49f61850.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": 2
+    },
+    {
+      "file": "inputs/single-play.gif",
+      "purpose": "GIF partial frames, local palettes, transparency, disposal 1/3/2",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/a2e61dcc3843bb5f.png",
+        "reference/01f84468e3f9ae96.png",
+        "reference/1c7ca64c49f61850.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": -1
+    },
+    {
+      "file": "inputs/animation.apng",
+      "purpose": "APNG blend/disposal",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/a2e61dcc3843bb5f.png",
+        "reference/01f84468e3f9ae96.png",
+        "reference/05e34a49e8aa6dfe.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": 0
+    },
+    {
+      "file": "inputs/poster.apng",
+      "purpose": "APNG blend/disposal; separate poster excluded",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/a2e61dcc3843bb5f.png",
+        "reference/01f84468e3f9ae96.png",
+        "reference/05e34a49e8aa6dfe.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": 2
+    },
+    {
+      "file": "inputs/animation.webp",
+      "purpose": "Lossless animated WebP with alpha and unequal delays",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/0abc4f840f1af279.png",
+        "reference/9dbe680ee4b352cb.png",
+        "reference/05e34a49e8aa6dfe.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": 0
+    },
+    {
+      "file": "inputs/animation.avif",
+      "purpose": "Independent AVIF sequence; millisecond timing, alpha",
+      "reference": [
+        "reference/55ea2f5c20d8c7f3.png",
+        "reference/0abc4f840f1af279.png",
+        "reference/9dbe680ee4b352cb.png",
+        "reference/05e34a49e8aa6dfe.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        70,
+        130,
+        110,
+        190
+      ],
+      "loops": 0
+    }
+  ]
+}
