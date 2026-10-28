@@ -212,6 +212,11 @@ func run(_ context.Context, cmd *cli.Command) error {
 		return errors.New("--play only supports a single input file")
 	}
 
+	splitX, splitY, err := planSplit(cmd, len(inputs))
+	if err != nil {
+		return err
+	}
+
 	startNum := cmd.Int("start-number")
 
 	var (
@@ -281,7 +286,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	plans := make([]outputPlan, len(inputs))
 
 	for index := range inputs {
-		plan, err := resolveOutput(inputs[index], outputs[index], outputDirectory, cmd)
+		plan, err := resolveOutput(inputs[index], outputs[index], outputDirectory, cmd, splitX, splitY)
 		if err != nil {
 			return err
 		}

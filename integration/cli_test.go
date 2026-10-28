@@ -27,6 +27,13 @@ type destinationConflictCase struct {
 	err    string
 }
 
+type splitPlanningCase struct {
+	name   string
+	split  string
+	inputs int
+	err    string
+}
+
 func TestCLI_OutputSafety(t *testing.T) {
 	existingStates := []bool{false, true}
 
@@ -289,6 +296,60 @@ func TestCLI_DestinationConflicts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCLI_SplitPlanningLimit(t *testing.T) {
+	cases := []splitPlanningCase{
+		{name: "excessive", split: "1000x1000", inputs: 1, err: "split requests 1000000 tiles; supported limit is 10000"},
+		{name: "aggregate", split: "100x60", inputs: 2, err: "split requests 12000 tiles; supported limit is 10000"},
+		{name: "multiplication", split: "2147483647x2147483647", inputs: 5, err: "split requests 23058430070662103045 tiles; supported limit is 10000"},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			sentinel := []byte("must fail before decoding or writing")
+			paths := make([]string, 0, test.inputs+1)
+
+			for index := range test.inputs {
+				paths = append(paths, filepath.Join(directory, fmt.Sprintf("input-%d.png", index)))
+			}
+
+			paths = append(paths, filepath.Join(directory, "tile-1-0.png"))
+
+			for _, path := range paths {
+				writeBytes(t, path, sentinel)
+			}
+
+			result := icmd.RunCmd(icmd.Command(executable, "-s", "-i", filepath.Join(directory, "input-*.png"), "-o", filepath.Join(directory, "tile-{#}-{i}.png"), "--split", test.split))
+			result.Assert(t, icmd.Expected{ExitCode: 1, Err: test.err})
+
+			entries, err := os.ReadDir(directory)
+			if err != nil || len(entries) != len(paths) {
+				t.Fatalf("planning created output: %v, %v", entries, err)
+			}
+
+			for _, path := range paths {
+				actual, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(actual, sentinel) {
+					t.Fatalf("planning changed %q: %v", path, err)
+				}
+			}
+		})
+	}
+}
+
+func TestCLI_SplitDimensionsWithinLimit(t *testing.T) {
+	directory := t.TempDir()
+	output := filepath.Join(directory, "tile-{i}.png")
+
+	result := icmd.RunCmd(icmd.Command(executable, "-s", "-i", "fixtures/inputs/alpha.png", "-o", output, "--split", "100x100"))
+	result.Assert(t, icmd.Expected{ExitCode: 1, Err: "x/y too large for image dimensions"})
+
+	entries, err := os.ReadDir(directory)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("invalid dimensions created output: %v, %v", entries, err)
 	}
 }
 
