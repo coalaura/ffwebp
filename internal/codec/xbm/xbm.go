@@ -2,6 +2,7 @@ package xbm
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"io"
 
@@ -12,13 +13,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 var name string
 
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "xbm"
@@ -47,7 +48,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	buf := make([]byte, 128)
 
 	n, err := reader.ReadAt(buf, 0)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, nil, err
 	}
 

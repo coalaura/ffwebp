@@ -2,6 +2,7 @@ package heif
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -13,11 +14,11 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "heif"
@@ -39,7 +40,7 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	buf := make([]byte, 32)
 
 	n, err := reader.ReadAt(buf, 0)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return 0, nil, err
 	}
 

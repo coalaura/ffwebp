@@ -21,7 +21,7 @@ func (impl) String() string {
 }
 
 func (impl) Apply(img image.Image, args string) (image.Image, error) {
-	var change float64 = 0.1
+	change := 0.1
 
 	if args != "" {
 		f64, err := strconv.ParseFloat(args, 64)

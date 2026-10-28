@@ -83,9 +83,9 @@ func Parse() ([]EffectConfig, error) {
 			arguments string
 		)
 
-		if index := strings.Index(entry, ":"); index != -1 {
-			name = entry[:index]
-			arguments = entry[index+1:]
+		if before, after, ok0 := strings.Cut(entry, ":"); ok0 {
+			name = before
+			arguments = after
 		}
 
 		effect, ok := registry[name]

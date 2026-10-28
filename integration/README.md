@@ -12,7 +12,7 @@ go test -count=1 -v ./integration
 
 The suite builds its own temporary CLI binary. Docker and the fixture-generation tools are needed only to regenerate the corpus.
 
-Six decoder cases currently fail on known codec issues; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md). These remain failing assertions rather than skipped tests or accepted output.
+All 60 decoder fixtures pass.
 
 ## Coverage
 

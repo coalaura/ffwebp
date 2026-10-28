@@ -83,8 +83,44 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
+	source, ok := reader.(io.ReaderAt)
+	if !ok {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, err
+		}
+
+		buffer := bytes.NewReader(data)
+
+		reader = buffer
+		source = buffer
+	}
+
 	// Document pages are not animation frames; Decode reads only the first IFD.
-	return tiff.Decode(reader)
+	img, err := tiff.Decode(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	invert, err := invertFaxPolarity(source)
+	if err != nil {
+		return nil, err
+	}
+
+	if invert {
+		gray, ok := img.(*image.Gray)
+		if !ok {
+			return nil, fmt.Errorf("tiff: unexpected fax image type %T", img)
+		}
+
+		// CCITT runs use zero for white samples irrespective of the TIFF photometric tag.
+		// tiff v1.0.7 instead normalizes BlackIsZero runs to display colors too early.
+		for index := range gray.Pix {
+			gray.Pix[index] = ^gray.Pix[index]
+		}
+	}
+
+	return img, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {

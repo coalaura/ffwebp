@@ -14,6 +14,8 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 var (
 	method     int
 	exact      bool
@@ -23,8 +25,6 @@ var (
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "webp"
@@ -71,7 +71,8 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 func (impl) Sniff(rd io.ReaderAt) (int, []byte, error) {
 	buf := make([]byte, 12)
 
-	if _, err := rd.ReadAt(buf, 0); err != nil {
+	_, err := rd.ReadAt(buf, 0)
+	if err != nil {
 		return 0, nil, err
 	}
 
@@ -83,21 +84,32 @@ func (impl) Sniff(rd io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(reader io.Reader) (image.Image, error) {
-	return webp.Decode(reader, &webp.DecodeOptions{
+	img, err := webp.Decode(reader, &webp.DecodeOptions{
 		UseThreads: true,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return straightAlpha(img), nil
 }
 
 func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 	anim, err := webp.DecodeAll(reader, &webp.DecodeOptions{
 		UseThreads: true,
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
 	if anim == nil {
 		return nil, fmt.Errorf("webp: decoded animation is nil")
+	}
+
+	for index, frame := range anim.Image {
+		anim.Image[index] = straightAlpha(frame)
 	}
 
 	return &codec.Animation{
@@ -148,4 +160,14 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		Exact:      exact,
 		UseThreads: true,
 	})
+}
+
+func straightAlpha(img image.Image) image.Image {
+	if rgba, ok := img.(*image.RGBA); ok {
+		// webp v1.6.6 wraps straight MODE_RGBA bytes as premultiplied RGBA.
+		// Reuse the owned pixel buffer with the correct color model, without conversion.
+		return &image.NRGBA{Pix: rgba.Pix, Stride: rgba.Stride, Rect: rgba.Rect}
+	}
+
+	return img
 }

@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/draw"
 	"io"
+	"slices"
 
 	"github.com/gonutz/xcf"
 
@@ -67,8 +68,7 @@ func (impl) Decode(r io.Reader) (image.Image, error) {
 
 	dst := image.NewNRGBA(image.Rect(0, 0, int(canvas.Width), int(canvas.Height)))
 
-	for i := len(canvas.Layers) - 1; i >= 0; i-- {
-		layer := canvas.Layers[i]
+	for _, layer := range slices.Backward(canvas.Layers) {
 		if !layer.Visible {
 			continue
 		}

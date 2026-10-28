@@ -14,6 +14,8 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type impl struct{}
+
 var (
 	plain     bool
 	maxValue  uint16
@@ -24,8 +26,6 @@ var (
 func init() {
 	codec.Register(impl{})
 }
-
-type impl struct{}
 
 func (impl) String() string {
 	return "pnm"
@@ -71,7 +71,8 @@ func (impl) Flags(flags []cli.Flag) []cli.Flag {
 func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	buf := make([]byte, 2)
 
-	if _, err := reader.ReadAt(buf, 0); err != nil {
+	_, err := reader.ReadAt(buf, 0)
+	if err != nil {
 		return 0, nil, err
 	}
 
@@ -83,7 +84,26 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 }
 
 func (impl) Decode(r io.Reader) (image.Image, error) {
-	return netpbm.Decode(r, nil)
+	// PAM accepts all Netpbm variants without stripping their alpha channels.
+	img, err := netpbm.Decode(r, &netpbm.DecodeOptions{Target: netpbm.PAM})
+	if err != nil {
+		return nil, err
+	}
+
+	// Preserve straight samples instead of going through netpbm's rounded
+	// premultiplication and the encoder's subsequent unpremultiplication.
+	switch pixels := img.(type) {
+	case *netpbm.RGBAM:
+		if pixels.Model.M == 255 {
+			return &image.NRGBA{Pix: pixels.Pix, Stride: pixels.Stride, Rect: pixels.Rect}, nil
+		}
+	case *netpbm.RGBAM64:
+		if pixels.Model.M == 65535 {
+			return &image.NRGBA64{Pix: pixels.Pix, Stride: pixels.Stride, Rect: pixels.Rect}, nil
+		}
+	}
+
+	return img, nil
 }
 
 func (impl) Encode(w io.Writer, img image.Image, common opts.Common) error {

@@ -74,6 +74,7 @@ func Resize(width, height int, img image.Image) image.Image {
 	if dstW < 1 {
 		dstW = 1
 	}
+
 	if dstH < 1 {
 		dstH = 1
 	}
