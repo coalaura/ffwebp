@@ -83,7 +83,8 @@ func Parse() ([]EffectConfig, error) {
 			arguments string
 		)
 
-		if before, after, ok0 := strings.Cut(entry, ":"); ok0 {
+		before, after, found := strings.Cut(entry, ":")
+		if found {
 			name = before
 			arguments = after
 		}

@@ -12,13 +12,18 @@ func Thumbnail(maxWidth, maxHeight uint, img image.Image) image.Image {
 	}
 
 	bounds := img.Bounds()
-	srcW, srcH := bounds.Dx(), bounds.Dy()
+
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
 
 	if srcW <= int(maxWidth) && srcH <= int(maxHeight) {
 		return img
 	}
 
-	var dstW, dstH int
+	var (
+		dstW int
+		dstH int
+	)
 
 	if maxWidth == 0 {
 		dstH = int(maxHeight)
@@ -61,9 +66,12 @@ func Resize(width, height int, img image.Image) image.Image {
 	}
 
 	bounds := img.Bounds()
-	srcW, srcH := bounds.Dx(), bounds.Dy()
 
-	dstW, dstH := width, height
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+
+	dstW := width
+	dstH := height
 
 	if width == 0 {
 		dstW = srcW * dstH / srcH

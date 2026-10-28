@@ -42,7 +42,9 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	magic := []byte("gimp xcf ")
 
 	buf := make([]byte, len(magic))
-	if _, err := reader.ReadAt(buf, 0); err != nil {
+
+	_, err := reader.ReadAt(buf, 0)
+	if err != nil {
 		return 0, nil, err
 	}
 
