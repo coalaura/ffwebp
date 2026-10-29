@@ -210,6 +210,10 @@ func resolveJoinOutput(inputs []string, output string, cmd *cli.Command) (output
 }
 
 func parseJoinDimensions(value string, allowAuto bool) (int, int, error) {
+	if allowAuto && strings.EqualFold(strings.TrimSpace(value), "auto") {
+		return 0, 1, nil
+	}
+
 	separator := strings.IndexAny(value, "xX:,")
 	if separator < 0 {
 		return 0, 0, errors.New("expected COLSxROWS or WIDTHxHEIGHT (e.g. 2x2)")

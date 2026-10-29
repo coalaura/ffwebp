@@ -91,7 +91,7 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "join",
-			Usage: "join inputs into COLSxROWS cells (e.g. 2x2, 3xauto, autox1); unused cells stay empty",
+			Usage: "join inputs into optional `[COLSxROWS]` cells (e.g. 2x2, 3xauto); omitted or auto means autox1",
 		},
 		&cli.StringFlag{
 			Name:  "join-background",
@@ -165,7 +165,11 @@ func main() {
 		},
 	}
 
-	err := app.Run(context.Background(), os.Args)
+	arguments, err := prepareArguments(os.Args, app)
+	if err == nil {
+		err = app.Run(context.Background(), arguments)
+	}
+
 	if err != nil {
 		logx.Errorf("fatal: %v\n", err)
 	}

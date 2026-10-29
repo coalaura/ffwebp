@@ -33,6 +33,8 @@ EXAMPLES:
    # If the first input is 2.png: 2-010-10-0-0-0.png, 2-010-10-0-1-1.png,
    #                2-010-10-1-0-2.png, 2-010-10-1-1-3.png (under out/)
    ffwebp -i "images/*.jpg" -o "out/{/.}.avif"
+   ffwebp --join -i first.png -i second.png -i third.png strip.png
+   # One horizontal row, equivalent to --join auto or --join autox1.
    ffwebp -i first.png -i second.png -i third.png --join 2x2 joined.png
    # Bottom-right cell stays empty; default background is transparent.
    ffwebp -i "tiles/*.png" --join 3xauto joined.png
@@ -42,6 +44,10 @@ NOTES:
    - Output codec is inferred from the final extension unless --codec is set.
    - With multiple inputs, output must be a pattern or directory, unless using --join.
    - --join writes one file or stdout; output directories and patterns are rejected.
+   - Bare --join defaults to autox1. Use --join 1xauto for one vertical column.
+   - Use -o or -- before an output name that looks like a grid (e.g. 2x2).
    - --join and --split are mutually exclusive. Positional arguments specify output only.
+   - Missing flag values are reported before the next option is consumed as a value.
+   - Use -i=-photo.png or -i ./-photo.png for input names beginning with a dash.
    - Ordinary templates, sequence numbers and tile templates can be combined.
    - Without a tile template, --split adds _r0_c0, _r0_c1, etc. before the extension.

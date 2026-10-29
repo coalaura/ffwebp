@@ -94,6 +94,9 @@ ffwebp -i in.jpg -o out.png -s
 Repeat `-i` to select files in order. Each quoted glob or `%d` sequence expands in place; numeric filename parts sort naturally (`photo2` before `photo10` and `_r0_c2` before `_r0_c10`). Explicit paths keep their order and may be repeated. Positional arguments still specify the output, not additional inputs. Repeatable inputs also work for ordinary batch conversions.
 
 ```bash
+# Join all inputs in one horizontal row (equivalent to --join auto or --join autox1)
+ffwebp --join -i first.png -i second.png -i third.png strip.png
+
 # Three images in a 2-column, 2-row grid; the bottom-right cell stays empty
 ffwebp -i first.png -i second.png -i third.png --join 2x2 joined.png
 
@@ -110,7 +113,7 @@ ffwebp -i "photos/*.jpg" --join 4xauto --join-cell 320x240 --join-mode cover --j
 ffwebp -i left.png -i right.png --join 2x1 -t 800 joined.webp
 ```
 
-- `--join COLSxROWS` fills cells left to right, top to bottom, like `--split`. Either dimension may be `auto`, but not both. Fewer inputs leave background-filled cells; too many inputs produce an error suggesting a larger grid or `auto`.
+- Bare `--join`, `--join auto` and `--join autox1` make one horizontal row. `--join 1xauto` makes one vertical column. `--join COLSxROWS` fills cells left to right, top to bottom, like `--split`. Either dimension may be `auto`, but not both. Fewer inputs leave background-filled cells; too many inputs produce an error suggesting a larger grid or `auto`.
 - By default, each column uses its widest source and each row its tallest source. Entirely empty columns or rows use the largest populated column width or row height. `--join-cell WIDTHxHEIGHT` selects uniform pixel dimensions instead.
 - `--join-mode original` (default) places images at their original size without cropping. An image larger than an explicit cell is an error. `fit` scales up or down to fit while preserving aspect ratio; `cover` scales to fill and crops the overflow; `stretch` scales to the exact cell size without preserving aspect ratio.
 - `--join-align` defaults to `center`. It also accepts `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left` and `bottom-right`. Alignment controls padding placement and which part of a cover image remains visible.
@@ -118,6 +121,8 @@ ffwebp -i left.png -i right.png --join 2x1 -t 800 joined.webp
 - Animated inputs use their first frame unless `--frame` or `--time` selects another. Joining precedes thumbnails and effects. `--play` previews the processed canvas.
 - Joining requires one output filename or stdout (`-c png`, for example); output directories and per-input patterns are rejected. The destination must not alias an input. `--join` and `--split` cannot be combined and a failed input fails the entire join before output is written. Stdin can be selected once with `-i -`.
 - Logs show the resolved order, zero-based row/column placements, sizing policy, final canvas dimensions and empty-cell count. Use `--silent` to suppress them. Grids are limited to 10,000 cells and canvases to 32 million pixels; reduce `--join-cell` if necessary.
+
+Grid values may also be attached (`--join=2x2`). A following output filename stays positional when the grid is omitted; use `-o` or `--` to disambiguate an output name that itself looks like a grid. Flags requiring values report a missing value when followed by another option. For literal values beginning with a dash, use an equals sign (`-i=-photo.png`) or a relative path (`-i ./-photo.png`). Negative numeric values and `-` for stdin/stdout remain supported.
 
 ## Codec Options
 
