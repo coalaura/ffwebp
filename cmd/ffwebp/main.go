@@ -33,11 +33,11 @@ var Version = "dev"
 
 func main() {
 	flags := []cli.Flag{
-		&cli.StringFlag{
+		&cli.StringSliceFlag{
 			Name:    "input",
 			Aliases: []string{"i"},
-			Usage:   "input file or pattern (\"-\" = stdin, supports globs and %d sequences)",
-			Value:   "-",
+			Usage:   "input file or pattern; repeat to select ordered inputs (\"-\" = stdin, supports globs and %d sequences)",
+			Value:   []string{"-"},
 		},
 		&cli.StringFlag{
 			Name:    "output",
@@ -89,6 +89,29 @@ func main() {
 			Name:  "split",
 			Usage: "split output into XxY tiles (example: 3x2). Order: left->right, top->bottom",
 		},
+		&cli.StringFlag{
+			Name:  "join",
+			Usage: "join inputs into COLSxROWS cells (e.g. 2x2, 3xauto, autox1); unused cells stay empty",
+		},
+		&cli.StringFlag{
+			Name:  "join-background",
+			Usage: "cell background: transparent, white, black, #RGB, #RGBA, #RRGGBB or #RRGGBBAA",
+			Value: "transparent",
+		},
+		&cli.StringFlag{
+			Name:  "join-mode",
+			Usage: "image sizing within cells: original, fit, cover or stretch",
+			Value: "original",
+		},
+		&cli.StringFlag{
+			Name:  "join-align",
+			Usage: "cell alignment: center, top, bottom, left, right, top-left, top-right, bottom-left or bottom-right",
+			Value: "center",
+		},
+		&cli.StringFlag{
+			Name:  "join-cell",
+			Usage: "fixed cell WIDTHxHEIGHT in pixels; default uses the widest image per column and tallest per row",
+		},
 		&cli.IntFlag{
 			Name:  "threads",
 			Usage: "number of worker threads (0=auto)",
@@ -125,17 +148,18 @@ func main() {
 	flags = effects.Flags(flags)
 
 	app := &cli.Command{
-		Name:                   "ffwebp",
-		Usage:                  "Convert any image format into any other image format",
-		ArgsUsage:              "[output]",
-		Version:                fmt.Sprintf("%s %s", Version, tags()),
-		Flags:                  flags,
-		Action:                 run,
-		Writer:                 os.Stderr,
-		ErrWriter:              os.Stderr,
-		EnableShellCompletion:  true,
-		UseShortOptionHandling: true,
-		Suggest:                true,
+		Name:                      "ffwebp",
+		Usage:                     "Convert any image format into any other image format",
+		ArgsUsage:                 "[output]",
+		Version:                   fmt.Sprintf("%s %s", Version, tags()),
+		Flags:                     flags,
+		Action:                    run,
+		Writer:                    os.Stderr,
+		ErrWriter:                 os.Stderr,
+		EnableShellCompletion:     true,
+		UseShortOptionHandling:    true,
+		DisableSliceFlagSeparator: true,
+		Suggest:                   true,
 		Commands: []*cli.Command{
 			help.Command(),
 		},
@@ -151,7 +175,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 	banner()
 
 	var (
-		input  string
 		output string
 
 		common opts.Common
@@ -162,7 +185,6 @@ func run(_ context.Context, cmd *cli.Command) error {
 
 	common.FillDefaults()
 
-	input = cmd.String("input")
 	output = cmd.String("output")
 
 	args := cmd.Args()
@@ -178,34 +200,18 @@ func run(_ context.Context, cmd *cli.Command) error {
 		output = args.First()
 	}
 
-	var inputs []string
+	inputs, err := expandInputs(cmd.StringSlice("input"))
+	if err != nil {
+		return err
+	}
 
-	if input == "-" {
-		inputs = []string{"-"}
-	} else if hasSeq(input) {
-		files, err := expandSeq(input)
-		if err != nil {
-			return err
-		}
+	err = validateJoinFlags(cmd)
+	if err != nil {
+		return err
+	}
 
-		if len(files) == 0 {
-			return fmt.Errorf("no inputs match sequence: %s", filepath.ToSlash(input))
-		}
-
-		inputs = files
-	} else if isGlob(input) {
-		files, err := expandGlob(input)
-		if err != nil {
-			return err
-		}
-
-		if len(files) == 0 {
-			return fmt.Errorf("no inputs match glob: %s", filepath.ToSlash(input))
-		}
-
-		inputs = files
-	} else {
-		inputs = []string{input}
+	if cmd.IsSet("join") {
+		return processJoin(inputs, output, cmd, &common)
 	}
 
 	if cmd.Bool("play") && len(inputs) > 1 {
@@ -370,49 +376,6 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 	localOpts := *common
 	localOpts.OutputExtension = plan.extension
 
-	var (
-		reader    io.Reader = os.Stdin
-		inputFile *os.File
-	)
-
-	closeInput := func() error {
-		if inputFile == nil {
-			return nil
-		}
-
-		err := inputFile.Close()
-		inputFile = nil
-
-		return err
-	}
-
-	defer closeInput()
-
-	if input != "-" {
-		logx.Fprintf(logger, "opening input file %q\n", filepath.ToSlash(input))
-
-		file, err := os.OpenFile(input, os.O_RDONLY, 0)
-		if err != nil {
-			return err
-		}
-
-		inputFile = file
-		reader = file
-	} else {
-		logx.Fprintf(logger, "reading input from <stdin>\n")
-	}
-
-	forced := cmd.String("input.codec")
-
-	sniffed, reader2, err := codec.Sniff(reader, input, forced, cmd.Bool("sniff"))
-	if err != nil {
-		return err
-	}
-
-	reader = reader2
-
-	logx.Fprintf(logger, "sniffed codec: %s (%q, forced=%v)\n", sniffed.Codec, sniffed, forced != "")
-
 	if !doPlay {
 		logx.Fprintf(logger, "output codec: %s (forced=%v)\n", oCodec, cmd.IsSet("codec"))
 
@@ -426,7 +389,10 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	t0 := time.Now()
 
-	animDecoder, hasAnimDecoder := sniffed.Codec.(codec.AnimatedDecoder)
+	img, anim, err := decodeInput(input, cmd, logger)
+	if err != nil {
+		return err
+	}
 
 	var (
 		animEncoder    codec.AnimatedEncoder
@@ -437,57 +403,12 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 		animEncoder, hasAnimEncoder = oCodec.(codec.AnimatedEncoder)
 	}
 
-	frameIdx := cmd.Int("frame")
-	timeMs := int(cmd.Duration("time").Milliseconds())
-
-	var (
-		anim *codec.Animation
-		img  image.Image
-	)
-
-	if hasAnimDecoder {
-		anim, err = animDecoder.DecodeAll(reader)
-		if err != nil {
-			return err
-		} else if anim == nil {
-			return errors.New("decoded animation is nil")
-		} else if len(anim.Frames) == 0 {
-			return errors.New("decoded animation has no frames")
-		}
-
-		err = closeInput()
-		if err != nil {
-			return err
-		}
-
-		if frameIdx >= 0 {
-			if frameIdx >= len(anim.Frames) {
-				return fmt.Errorf("frame index %d out of range (animation has %d frames)", frameIdx, len(anim.Frames))
+	if anim != nil {
+		if cmd.Int("frame") >= 0 || cmd.IsSet("time") {
+			img, err = selectAnimationFrame(anim, cmd, logger)
+			if err != nil {
+				return err
 			}
-
-			img = anim.Frames[frameIdx]
-
-			logx.Fprintf(logger, "selected frame %d from %d frame animation\n", frameIdx, len(anim.Frames))
-		} else if cmd.IsSet("time") {
-			var (
-				cumulativeTime int
-				selectedIdx    int
-			)
-
-			for i, delay := range anim.Delays {
-				if cumulativeTime+delay > timeMs {
-					selectedIdx = i
-
-					break
-				}
-
-				cumulativeTime += delay
-				selectedIdx = i
-			}
-
-			img = anim.Frames[selectedIdx]
-
-			logx.Fprintf(logger, "selected frame %d at ~%dms from %d frame animation\n", selectedIdx, cumulativeTime, len(anim.Frames))
 		} else if (!doPlay && !hasAnimEncoder) || doSplit {
 			img = anim.Frames[0]
 
@@ -561,19 +482,14 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 		}
 	}
 
-	if img == nil {
-		img, err = sniffed.Codec.Decode(reader)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = closeInput()
-	if err != nil {
-		return err
-	}
-
 	logx.Fprintf(logger, "decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))
+
+	return processImage(img, plan, cmd, common, logger)
+}
+
+func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
+	localOpts := *common
+	localOpts.OutputExtension = plan.extension
 
 	thumbnail := cmd.Uint("thumbnail")
 	if thumbnail > 0 {
@@ -586,7 +502,10 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	t1 := time.Now()
 
-	var n int
+	var (
+		n   int
+		err error
+	)
 
 	img, n, err = effects.ApplyAll(img)
 	if err != nil {
@@ -595,7 +514,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 		logx.Fprintf(logger, "applied %d effect(s) in %s\n", n, time.Since(t1).Truncate(time.Millisecond))
 	}
 
-	if doPlay {
+	if cmd.Bool("play") {
 		logx.Fprintf(logger, "playing image...\n")
 
 		return play.PlayImage(img)
@@ -603,7 +522,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	t2 := time.Now()
 
-	if doSplit {
+	if len(plan.tiles) > 0 {
 		tiles, err := resize.Split(img, plan.splitX, plan.splitY)
 		if err != nil {
 			return err
@@ -615,7 +534,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 			tileOut := plan.tiles[i]
 
 			written, err := writeOutput(tileOut, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
-				return oCodec.Encode(writer, tile, localOpts)
+				return plan.codec.Encode(writer, tile, localOpts)
 			})
 
 			if err != nil {
@@ -630,8 +549,8 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 		return nil
 	}
 
-	written, err := writeOutput(output, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
-		return oCodec.Encode(writer, img, localOpts)
+	written, err := writeOutput(plan.path, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
+		return plan.codec.Encode(writer, img, localOpts)
 	})
 
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,7 +85,7 @@ func expandGlob(pat string) ([]string, error) {
 		return nil, err
 	}
 
-	sort.Strings(matches)
+	slices.SortFunc(matches, compareNaturalPaths)
 
 	return matches, nil
 }
@@ -220,4 +221,101 @@ func formatTileTemplate(pattern string, row, col, idx int) string {
 	)
 
 	return r.Replace(pattern)
+}
+
+func expandInputs(patterns []string) ([]string, error) {
+	inputs := make([]string, 0, len(patterns))
+
+	var stdin bool
+
+	for _, pattern := range patterns {
+		if pattern == "-" {
+			if stdin {
+				return nil, fmt.Errorf("stdin can only be selected once")
+			}
+
+			stdin = true
+		}
+
+		var (
+			matches []string
+			err     error
+		)
+
+		switch {
+		case hasSeq(pattern):
+			matches, err = expandSeq(pattern)
+		case isGlob(pattern):
+			matches, err = expandGlob(pattern)
+		default:
+			inputs = append(inputs, pattern)
+
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("no inputs match pattern: %s", filepath.ToSlash(pattern))
+		}
+
+		inputs = append(inputs, matches...)
+	}
+
+	return inputs, nil
+}
+
+func compareNaturalPaths(first, second string) int {
+	left := first
+	right := second
+
+	for len(left) > 0 && len(right) > 0 {
+		if left[0] >= '0' && left[0] <= '9' && right[0] >= '0' && right[0] <= '9' {
+			leftEnd := digitRunEnd(left)
+			rightEnd := digitRunEnd(right)
+
+			leftDigits := strings.TrimLeft(left[:leftEnd], "0")
+			rightDigits := strings.TrimLeft(right[:rightEnd], "0")
+
+			// Compare digit counts before contents, without integer overflow.
+			if len(leftDigits) != len(rightDigits) {
+				return len(leftDigits) - len(rightDigits)
+			}
+
+			comparison := strings.Compare(leftDigits, rightDigits)
+			if comparison != 0 {
+				return comparison
+			}
+
+			left = left[leftEnd:]
+			right = right[rightEnd:]
+
+			continue
+		}
+
+		if left[0] != right[0] {
+			return int(left[0]) - int(right[0])
+		}
+
+		left = left[1:]
+		right = right[1:]
+	}
+
+	if len(left) != len(right) {
+		return len(left) - len(right)
+	}
+
+	return strings.Compare(first, second)
+}
+
+func digitRunEnd(value string) int {
+	var index int
+
+	for index < len(value) && value[index] >= '0' && value[index] <= '9' {
+		index++
+	}
+
+	return index
 }
