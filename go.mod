@@ -10,7 +10,7 @@ require (
 	github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.6.0
-	github.com/gen2brain/heic v0.7.2
+	github.com/gen2brain/h265 v0.2.4
 	github.com/gen2brain/jpegn v0.6.1
 	github.com/gen2brain/jpegxl v0.6.0
 	github.com/gen2brain/pngn v0.1.3

@@ -109,6 +109,31 @@ func TestCLI_Lossless(t *testing.T) {
 	}
 }
 
+func TestCLI_HEIFLossless(t *testing.T) {
+	directory := t.TempDir()
+	input := filepath.Join(directory, "input.png")
+	encoded := filepath.Join(directory, "encoded.heif")
+	output := filepath.Join(directory, "output.png")
+
+	expected := image.NewNRGBA(image.Rect(0, 0, 33, 31))
+
+	// Grayscale avoids RGB-to-YCbCr rounding while exercising odd sizes and alpha.
+	for row := range expected.Bounds().Dy() {
+		for column := range expected.Bounds().Dx() {
+			level := uint8(column*37 + row*19)
+			alpha := uint8(column*13 + row*17)
+			expected.SetNRGBA(column, row, color.NRGBA{R: level, G: level, B: level, A: alpha})
+		}
+	}
+
+	writePNG(t, input, expected)
+
+	run(t, icmd.Command(executable, "-s", "-i", input, "-o", encoded, "--codec", "heif", "--lossless"))
+	run(t, icmd.Command(executable, "-s", "--sniff", "-i", encoded, "-o", output))
+
+	assertPixels(t, readPNG(t, output), expected)
+}
+
 func TestCLI_TIFFCompression(t *testing.T) {
 	for compression := range 5 {
 		t.Run(fmt.Sprint(compression), func(t *testing.T) {

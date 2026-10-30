@@ -3,13 +3,13 @@ package heif
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"image"
 	"io"
 
-	"github.com/gen2brain/heic"
+	"github.com/gen2brain/h265/heic"
 
 	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/urfave/cli/v3"
 )
@@ -29,7 +29,7 @@ func (impl) Extensions() []string {
 }
 
 func (impl) CanEncode() bool {
-	return false
+	return true
 }
 
 func (impl) Flags(flags []cli.Flag) []cli.Flag {
@@ -77,5 +77,18 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, options opts.Common) error {
-	return fmt.Errorf("heif: encoding not supported")
+	settings := heic.EncodeOptions{
+		Quality:  options.Quality,
+		Lossless: options.Lossless,
+		Chroma:   heic.Chroma420,
+	}
+
+	if options.Lossless {
+		// PCM preserves samples, but subsampling would still discard color detail.
+		settings.Chroma = heic.Chroma444
+	}
+
+	logx.Printf("heif: quality=%d lossless=%t\n", settings.Quality, settings.Lossless)
+
+	return heic.Encode(writer, img, settings)
 }
