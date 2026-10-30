@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,61 +12,30 @@ import (
 	"strings"
 )
 
+const maxPatternWidth = 1000
+
 type sequenceMatch struct {
 	path string
 	n    int
 }
 
+type outputPatternValues struct {
+	inputIndex  int
+	startNumber int
+	sequence    int
+	row         int
+	column      int
+	tile        int
+	split       bool
+}
+
+var (
+	sequencePattern     = regexp.MustCompile(`%[-+ #0]*[0-9]*(?:\.[0-9]+)?d`)
+	numberFormatPattern = regexp.MustCompile(`^[-+ #0]*([1-9][0-9]*)?(?:\.([0-9]+))?d$`)
+)
+
 func hasSeq(s string) bool {
-	re := regexp.MustCompile(`%0?\d*d`)
-
-	return re.FindStringIndex(s) != nil
-}
-
-func seqSpec(s string) (start, end, width int, zeroPad bool, ok bool) {
-	re := regexp.MustCompile(`%0?(\d*)d`)
-
-	loc := re.FindStringSubmatchIndex(s)
-	if loc == nil {
-		return 0, 0, 0, false, false
-	}
-
-	start = loc[0]
-	end = loc[1]
-
-	if loc[2] != -1 && loc[3] != -1 {
-		wstr := s[loc[2]:loc[3]]
-
-		if wstr != "" {
-			w, err := strconv.Atoi(wstr)
-			if err == nil && w > 0 {
-				width = w
-			}
-		}
-	}
-
-	zeroPad = width > 0
-
-	return start, end, width, zeroPad, true
-}
-
-func formatSeq(pattern string, idx, startNum int) string {
-	s, e, width, zero, ok := seqSpec(pattern)
-	if !ok {
-		return pattern
-	}
-
-	n := idx + startNum
-
-	var num string
-
-	if width > 0 && zero {
-		num = fmt.Sprintf("%0*d", width, n)
-	} else {
-		num = fmt.Sprintf("%d", n)
-	}
-
-	return pattern[:s] + num + pattern[e:]
+	return sequencePattern.MatchString(s)
 }
 
 func isGlob(s string) bool {
@@ -98,21 +68,20 @@ func expandSeq(pat string) ([]string, error) {
 
 	base := filepath.Base(pat)
 
-	s, e, width, _, ok := seqSpec(base)
-	if !ok {
+	location := sequencePattern.FindStringIndex(base)
+	if location == nil {
 		return nil, nil
 	}
 
-	pre := regexp.QuoteMeta(base[:s])
-	suf := regexp.QuoteMeta(base[e:])
-
-	num := `\d+`
-
-	if width > 0 {
-		num = fmt.Sprintf(`\d{%d,}`, width)
+	width, err := numberFormatWidth(base[location[0]+1 : location[1]])
+	if err != nil {
+		return nil, err
 	}
 
-	re := regexp.MustCompile("^" + pre + "(" + num + ")" + suf + "$")
+	pre := regexp.QuoteMeta(base[:location[0]])
+	suf := regexp.QuoteMeta(base[location[1]:])
+
+	re := regexp.MustCompile("^" + pre + `([ +\-0-9]+)` + suf + "$")
 
 	scanDir := filepath.Dir(pat)
 
@@ -136,11 +105,11 @@ func expandSeq(pat string) ([]string, error) {
 
 		m := re.FindStringSubmatch(name)
 
-		if m == nil {
+		if m == nil || len(m[1]) < width {
 			continue
 		}
 
-		n, err := strconv.Atoi(m[1])
+		n, err := strconv.Atoi(strings.TrimSpace(m[1]))
 		if err != nil {
 			continue
 		}
@@ -172,55 +141,192 @@ func hasTemplate(s string) bool {
 		return false
 	}
 
-	return strings.Contains(s, "{/.}") || strings.Contains(s, "{/}") || strings.Contains(s, "{.}") || strings.Contains(s, "{}") || strings.Contains(s, "{//}") || strings.Contains(s, "{#}") || hasTileTemplate(s)
+	return strings.Contains(s, "{/.}") || strings.Contains(s, "{/}") || strings.Contains(s, "{.}") || strings.Contains(s, "{}") || strings.Contains(s, "{//}") || hasNumericTemplate(s, "#rci")
 }
 
 func trimExt(p string) string {
 	return strings.TrimSuffix(p, filepath.Ext(p))
 }
 
-func formatTemplate(pattern, in string, idx, startNum int) string {
-	if hasSeq(pattern) {
-		pattern = formatSeq(pattern, idx, startNum)
+func hasNumericTemplate(pattern, keys string) bool {
+	for len(pattern) > 0 {
+		start := strings.IndexByte(pattern, '{')
+		if start < 0 {
+			return false
+		}
+
+		pattern = pattern[start+1:]
+
+		end := strings.IndexByte(pattern, '}')
+		if end < 0 {
+			return false
+		}
+
+		token := pattern[:end]
+		if isNumericToken(token, keys) {
+			return true
+		}
+
+		pattern = pattern[end+1:]
 	}
 
-	dir := filepath.Dir(in)
-	base := filepath.Base(in)
+	return false
+}
 
-	// Special-case "-" (stdin)
-	if in == "-" {
-		dir = "."
+func formatOutputPattern(pattern, input string, values outputPatternValues) (string, error) {
+	if !strings.ContainsAny(pattern, "%{") {
+		return pattern, nil
+	}
+
+	directory := filepath.Dir(input)
+	base := filepath.Base(input)
+
+	if input == "-" {
+		directory = "."
 		base = "stdin"
 	}
 
-	fullNoExt := trimExt(in)
-	baseNoExt := trimExt(base)
-	n := idx + startNum
+	var output strings.Builder
 
-	r := strings.NewReplacer(
-		"{/.}", baseNoExt,
-		"{//}", dir,
-		"{/}", base,
-		"{.}", fullNoExt,
-		"{}", in,
-		"{#}", strconv.Itoa(n),
-	)
+	output.Grow(len(pattern))
 
-	return r.Replace(pattern)
+	// Expand the original pattern once; substituted filenames are literal data.
+	for index := 0; index < len(pattern); {
+		if pattern[index] == '%' {
+			location := sequencePattern.FindStringIndex(pattern[index:])
+			if location != nil && location[0] == 0 {
+				end := index + location[1]
+
+				err := appendPatternNumber(&output, pattern[index+1:end], values.sequence, values.startNumber)
+				if err != nil {
+					return "", err
+				}
+
+				index = end
+
+				continue
+			}
+		}
+
+		if pattern[index] != '{' {
+			output.WriteByte(pattern[index])
+			index++
+
+			continue
+		}
+
+		end := strings.IndexByte(pattern[index:], '}')
+		if end < 0 {
+			output.WriteString(pattern[index:])
+
+			break
+		}
+
+		end += index
+		token := pattern[index+1 : end]
+
+		switch token {
+		case "":
+			output.WriteString(input)
+		case ".":
+			output.WriteString(trimExt(input))
+		case "/":
+			output.WriteString(base)
+		case "/.":
+			output.WriteString(trimExt(base))
+		case "//":
+			output.WriteString(directory)
+		default:
+			if isNumericToken(token, "#rci") {
+				if token[0] != '#' && !values.split {
+					return "", fmt.Errorf("output placeholder {%s} requires --split", token)
+				}
+
+				err := appendNumericToken(&output, token, values)
+				if err != nil {
+					return "", err
+				}
+			} else {
+				output.WriteString(pattern[index : end+1])
+			}
+		}
+
+		index = end + 1
+	}
+
+	return output.String(), nil
 }
 
-func hasTileTemplate(s string) bool {
-	return strings.Contains(s, "{r}") || strings.Contains(s, "{c}") || strings.Contains(s, "{i}")
+func isNumericToken(token, keys string) bool {
+	return len(token) > 0 && strings.IndexByte(keys, token[0]) >= 0 && (len(token) == 1 || token[1] == ':')
 }
 
-func formatTileTemplate(pattern string, row, col, idx int) string {
-	r := strings.NewReplacer(
-		"{r}", strconv.Itoa(row),
-		"{c}", strconv.Itoa(col),
-		"{i}", strconv.Itoa(idx),
+func appendNumericToken(output *strings.Builder, token string, values outputPatternValues) error {
+	format := "d"
+
+	if len(token) > 1 {
+		format = token[2:]
+	}
+
+	var (
+		number int
+		start  int
 	)
 
-	return r.Replace(pattern)
+	switch token[0] {
+	case '#':
+		number = values.inputIndex
+		start = values.startNumber
+	case 'r':
+		number = values.row
+	case 'c':
+		number = values.column
+	case 'i':
+		number = values.tile
+	}
+
+	return appendPatternNumber(output, format, number, start)
+}
+
+func appendPatternNumber(output *strings.Builder, format string, number, start int) error {
+	_, err := numberFormatWidth(format)
+	if err != nil {
+		return err
+	}
+
+	if start > math.MaxInt-number {
+		return fmt.Errorf("output sequence exceeds the maximum integer; use a smaller --start-number")
+	}
+
+	fmt.Fprintf(output, "%"+format, number+start)
+
+	return nil
+}
+
+func numberFormatWidth(format string) (int, error) {
+	parts := numberFormatPattern.FindStringSubmatch(format)
+	if parts == nil {
+		return 0, fmt.Errorf("invalid numeric format %q: expected a printf decimal format such as d, 2d or 02d", format)
+	}
+
+	var width int
+
+	for index, part := range parts[1:] {
+		if part == "" {
+			continue
+		}
+
+		number, err := strconv.Atoi(part)
+		if err != nil || number > maxPatternWidth {
+			return 0, fmt.Errorf("numeric format width and precision must not exceed %d", maxPatternWidth)
+		}
+
+		if index == 0 {
+			width = number
+		}
+	}
+
+	return width, nil
 }
 
 func expandInputs(patterns []string) ([]string, error) {

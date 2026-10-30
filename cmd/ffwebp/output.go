@@ -130,7 +130,7 @@ func planSplit(cmd *cli.Command, inputCount int) (int, int, error) {
 }
 
 // splitX and splitY have already passed the invocation-wide planning limit.
-func resolveOutput(input, output string, directory bool, cmd *cli.Command, splitX, splitY int) (outputPlan, error) {
+func resolveOutput(input, output string, directory bool, cmd *cli.Command, splitX, splitY, inputIndex int) (outputPlan, error) {
 	plan := outputPlan{path: output}
 	split := splitX > 0
 
@@ -140,6 +140,24 @@ func resolveOutput(input, output string, directory bool, cmd *cli.Command, split
 
 	if split && output == "-" {
 		return plan, errors.New("--split requires file output (not stdout)")
+	}
+
+	pattern := output
+
+	values := outputPatternValues{
+		inputIndex:  inputIndex,
+		startNumber: cmd.Int("start-number"),
+		sequence:    inputIndex,
+		split:       split,
+	}
+
+	if split {
+		values.sequence = inputIndex * splitX * splitY
+	}
+
+	output, err := formatOutputPattern(pattern, input, values)
+	if err != nil {
+		return plan, err
 	}
 
 	if output != "-" {
@@ -155,8 +173,6 @@ func resolveOutput(input, output string, directory bool, cmd *cli.Command, split
 			output = filepath.Join(output, filepath.Base(input))
 		}
 	}
-
-	var err error
 
 	plan.codec, plan.extension, err = codec.Detect(output, cmd.String("codec"))
 	if err != nil {
@@ -174,12 +190,26 @@ func resolveOutput(input, output string, directory bool, cmd *cli.Command, split
 		plan.splitY = splitY
 		plan.tiles = make([]string, 0, splitX*splitY)
 
+		explicitTiles := !directory && (hasSeq(pattern) || hasTemplate(pattern))
+
 		for row := range splitY {
 			for column := range splitX {
-				tile := splitOutputPath(output, row, column)
+				var tile string
 
-				if hasTileTemplate(output) {
-					tile = formatTileTemplate(output, row, column, len(plan.tiles))
+				if explicitTiles {
+					values.row = row
+					values.column = column
+					values.tile = len(plan.tiles)
+					values.sequence = inputIndex*splitX*splitY + values.tile
+
+					tile, err = formatOutputPattern(pattern, input, values)
+					if err != nil {
+						return plan, err
+					}
+
+					tile = trimExt(tile) + "." + plan.extension
+				} else {
+					tile = splitOutputPath(output, row, column)
 				}
 
 				plan.tiles = append(plan.tiles, tile)
@@ -259,6 +289,10 @@ func validateOutputs(inputs []string, plans []outputPlan) error {
 		}
 
 		if previous != nil {
+			if previous.job == destination.job && len(plans[destination.job].tiles) > 0 {
+				return fmt.Errorf("conflicting destination %q for tiles of input %q (other output %q); use %%d, {i}, or both {r} and {c} to distinguish tiles", destination.path, inputs[destination.job], previous.path)
+			}
+
 			return fmt.Errorf("conflicting destination %q for inputs %q and %q (other output %q)", destination.path, inputs[previous.job], inputs[destination.job], previous.path)
 		}
 

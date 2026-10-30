@@ -13,25 +13,43 @@ INPUT PATTERNS:
 
 OUTPUT PATTERNS:
    - %d, %02d sequences (first output is --start-number, default 1)
+     Always counts output files. Each split tile is an output file.
+     Numbering is continuous across inputs, including when splitting.
+     Numbering follows input order, then row-major tile order, not worker timing.
    - Templates (GNU-parallel style):
        {}    full input path
        {.}   input path without last extension
        {/}   basename (file name)
        {/.}  basename without extension
        {//}  directory (no trailing slash)
-       {#}   sequence number (uses --start-number)
+       {#}   input sequence number (uses --start-number, constant for its tiles)
    - Tile templates with --split (zero-based, left to right, top to bottom):
        {r}   tile row
        {c}   tile column
        {i}   tile index
+      Tile indices reset for each input and do not use --start-number.
+      Using tile placeholders without --split is an error.
+   - Printf formatting works for every numeric placeholder:
+       %02d / {#:02d} / {i:02d} / {r:02d} / {c:02d}   zero padding
+       %3d / {i:3d}     space padding to minimum width 3
+       %-3d / {i:-3d}   left alignment
+       %+03d / {i:+03d} explicit sign with zero padding
+       %.3d / {i:.3d}   minimum digit precision
+     Width is a minimum, never truncates numbers and includes any sign.
+     Width and precision are limited to 1000.
 
 EXAMPLES:
    ffwebp -i "*.png" -o "{/.}.webp"
    ffwebp -i "frames/%03d.png" -o "out/frame-{#}.png" --start-number 10
    # First output: out/frame-10.png, then out/frame-11.png
    ffwebp -i "frames/%d.png" -o "out/{/.}-%03d-{#}-{r}-{c}-{i}.png" --start-number 10 --split 2x2
-   # If the first input is 2.png: 2-010-10-0-0-0.png, 2-010-10-0-1-1.png,
-   #                2-010-10-1-0-2.png, 2-010-10-1-1-3.png (under out/)
+   # If the first input is 2.png: 2-010-10-0-0-0.png, 2-011-10-0-1-1.png,
+   #                2-012-10-1-0-2.png, 2-013-10-1-1-3.png (under out/)
+   ffwebp --split 3x1 -i transmission.png "image-%02d.jpeg"
+   # image-01.jpeg, image-02.jpeg, image-03.jpeg (no coordinate suffix)
+   ffwebp --split 2x2 -i image.png "tile-r{r:02d}-c{c:02d}.png"
+   # tile-r00-c00.png, tile-r00-c01.png, tile-r01-c00.png, tile-r01-c01.png
+   ffwebp --split 3x1 -i "images/*.png" "out/{/.}-{i:02d}.png"
    ffwebp -i "images/*.jpg" -o "out/{/.}.avif"
    ffwebp --join -i first.png -i second.png -i third.png strip.png
    # One horizontal row, equivalent to --join auto or --join autox1.
@@ -50,4 +68,7 @@ NOTES:
    - Missing flag values are reported before the next option is consumed as a value.
    - Use -i=-photo.png or -i ./-photo.png for input names beginning with a dash.
    - Ordinary templates, sequence numbers and tile templates can be combined.
-   - Without a tile template, --split adds _r0_c0, _r0_c1, etc. before the extension.
+   - Explicit filename patterns expand as written, without added coordinate suffixes.
+   - Plain filenames and directory outputs use _r0_c0, _r0_c1, etc. with --split.
+   - Duplicate destinations are rejected before writing files; include enough indices.
+   - {#} alone cannot distinguish tiles; use %d or combine {#} with {i} or {r}/{c}.

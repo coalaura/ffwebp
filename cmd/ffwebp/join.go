@@ -178,7 +178,7 @@ func resolveJoinOutput(inputs []string, output string, cmd *cli.Command) (output
 		}
 	}
 
-	plan, err := resolveOutput(inputs[0], output, false, cmd, 0, 0)
+	plan, err := resolveOutput(inputs[0], output, false, cmd, 0, 0, 0)
 	if err != nil || cmd.Bool("play") || output == "-" {
 		return plan, err
 	}

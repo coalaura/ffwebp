@@ -98,7 +98,10 @@ func TestCLI_FilenamePatterns(t *testing.T) {
 
 	patterns := []filenamePatternCase{
 		{output: "single-%03d.png", want: "single-007.png"},
+		{output: "single-%3d.png", want: "single-  7.png"},
 		{output: "{/.}-{#}.png", want: "mars-rgb-7.png"},
+		{output: "{/.}-{#:03d}.png", want: "mars-rgb-007.png"},
+		{output: "{#:3d}-{#:-3d}-{#:+03d}.png", want: "  7-7  -+07.png"},
 		{output: "literal-{unknown}.png", want: "literal-{unknown}.png"},
 	}
 
@@ -251,9 +254,11 @@ func TestCLI_PaddedSequenceOverflow(t *testing.T) {
 
 	for index, number := range ordered {
 		for tile := range 2 {
-			actual := readPNG(t, filepath.Join(directory, fmt.Sprintf("out-%03d-%d.png", index+7, tile)))
+			sequence := index*2 + tile + 7
+
+			actual := readPNG(t, filepath.Join(directory, fmt.Sprintf("out-%03d-%d.png", sequence, tile)))
 			if actual.Bounds() != image.Rect(0, 0, 1, 1) || color.NRGBAModel.Convert(actual.At(0, 0)) != colors[number] {
-				t.Fatalf("incorrect sequence order or tile at output %d", index+7)
+				t.Fatalf("incorrect sequence order or tile at output %d", sequence)
 			}
 		}
 	}
@@ -266,7 +271,7 @@ func TestCLI_DestinationConflicts(t *testing.T) {
 		{name: "split-batch", inputs: []string{"photo.jpg", "photo.png"}, output: "out/{/.}-{i}.webp", flags: []string{"--split", "2x1"}, err: "conflicting destination"},
 		{name: "split-template", inputs: []string{"photo.png"}, output: "out/tile-{r}.png", flags: []string{"--split", "2x1"}, err: "conflicting destination"},
 		{name: "other-input", inputs: []string{"001.png", "002.png"}, output: "%03d.png", flags: []string{"--start-number", "2"}, err: "would overwrite input"},
-		{name: "split-input", inputs: []string{"tile.png", "tile_r0_c0.png"}, output: "{/.}.png", flags: []string{"--split", "1x1"}, err: "would overwrite input"},
+		{name: "split-input", inputs: []string{"tile.png", "tile_r0_c0.png"}, output: "{/.}_r{r}_c{c}.png", flags: []string{"--split", "1x1"}, err: "would overwrite input"},
 	}
 
 	for _, test := range cases {

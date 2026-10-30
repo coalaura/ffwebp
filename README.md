@@ -89,6 +89,41 @@ Silence logs
 ffwebp -i in.jpg -o out.png -s
 ```
 
+### Splitting images and output filenames
+
+`--split COLSxROWS` writes tiles left to right, top to bottom. A `%d` output sequence numbers each tile, starting at `--start-number` (default 1). `%02d` pads with zeros to a minimum width of two; larger numbers are never truncated. With multiple inputs, numbering continues across inputs in their resolved order, regardless of worker completion order.
+
+```bash
+# image-01.jpeg, image-02.jpeg, image-03.jpeg
+ffwebp --split 3x1 -i transmission.png "image-%02d.jpeg"
+
+# tile-r00-c00.png, tile-r00-c01.png, tile-r01-c00.png, tile-r01-c01.png
+ffwebp --split 2x2 -i image.png "tile-r{r:02d}-c{c:02d}.png"
+
+# Keep each input's name and number its tiles from 00
+ffwebp --split 3x1 -i "images/*.png" "out/{/.}-{i:02d}.png"
+
+# Separate input numbering from tile numbering
+ffwebp --split 3x1 -i "images/*.png" "out/input-{#:03d}-tile-{i:02d}.png"
+```
+
+Each numeric placeholder has one fixed meaning:
+
+| Pattern | Meaning |
+| --- | --- |
+| `%d` / `%02d` | Output file number, continuous across the entire command |
+| `{#}` / `{#:02d}` | Input number, shared by every output from that input |
+| `{i}` / `{i:02d}` | Tile index within one input, starting at 0 |
+| `{r}` / `{r:02d}` | Tile row, starting at 0 |
+| `{c}` / `{c:02d}` | Tile column, starting at 0 |
+
+- `--start-number` affects input and output sequences. Tile indices and coordinates reset for each input, remain zero-based and require `--split`.
+- All numeric placeholders accept decimal printf formatting: `%02d` or `{i:02d}` for zero padding, `%3d` or `{r:3d}` for space padding and `%-3d` or `{c:-3d}` for left alignment. Signs and precision work too (`%+03d`, `{#:03d}`, `{i:.3d}`). Width and precision are limited to 1,000.
+- Every explicit filename pattern is expanded as written, without added coordinate suffixes. Plain filenames such as `image.png` and directory outputs retain the automatic `image_r0_c0.png` naming when splitting.
+- Patterns can combine filenames, input numbers, output numbers and tile coordinates. Duplicate destinations are rejected before writing files. For example, splitting into multiple tiles with `image-{#:02d}.png` fails because every tile from one input has the same input number; use `image-{#:02d}-{i:02d}.png` or `image-%02d.png` instead.
+
+Run `ffwebp help patterns` for the full list of filename placeholders and more examples.
+
 ### Joining images
 
 Repeat `-i` to select files in order. Each quoted glob or `%d` sequence expands in place; numeric filename parts sort naturally (`photo2` before `photo10` and `_r0_c2` before `_r0_c10`). Explicit paths keep their order and may be repeated. Positional arguments still specify the output, not additional inputs. Repeatable inputs also work for ordinary batch conversions.

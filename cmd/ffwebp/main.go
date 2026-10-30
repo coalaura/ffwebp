@@ -52,7 +52,7 @@ func main() {
 		},
 		&cli.IntFlag{
 			Name:  "start-number",
-			Usage: "first output number for %d, padded sequences and {#}",
+			Usage: "first sequence number for %d outputs and {#} inputs (including padded forms)",
 			Value: 1,
 		},
 		&cli.StringFlag{
@@ -87,7 +87,7 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "split",
-			Usage: "split output into XxY tiles (example: 3x2). Order: left->right, top->bottom",
+			Usage: "split output into XxY tiles, left->right, top->bottom; %02d numbers outputs, {i:02d}/{r:02d}/{c:02d} pad tile indices",
 		},
 		&cli.StringFlag{
 			Name:  "join",
@@ -227,52 +227,19 @@ func run(_ context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	startNum := cmd.Int("start-number")
+	var outputDirectory bool
 
-	var (
-		outputs         []string
-		outputDirectory bool
-	)
-
-	if len(inputs) == 1 {
-		out := output
-
-		if out != "-" {
-			if hasTemplate(out) {
-				out = formatTemplate(out, inputs[0], 0, startNum)
-			} else if hasSeq(out) {
-				out = formatSeq(out, 0, startNum)
-			}
-		}
-
-		outputs = []string{out}
-	} else {
+	if len(inputs) > 1 {
 		switch {
 		case output == "-":
 			return fmt.Errorf("multiple inputs require an output pattern or directory, not '-' ")
-		case hasTemplate(output):
-			outs := make([]string, len(inputs))
-
-			for i := range inputs {
-				outs[i] = formatTemplate(output, inputs[i], i, startNum)
-			}
-
-			outputs = outs
-		case hasSeq(output):
-			outs := make([]string, len(inputs))
-
-			for i := range inputs {
-				outs[i] = formatSeq(output, i, startNum)
-			}
-
-			outputs = outs
+		case hasTemplate(output), hasSeq(output):
 		default:
-			outDir := output
-			if outDir == "" {
-				outDir = "."
+			if output == "" {
+				output = "."
 			}
 
-			fi, err := os.Stat(outDir)
+			fi, err := os.Stat(output)
 			if err == nil {
 				if !fi.IsDir() {
 					return fmt.Errorf("output must be a directory or pattern when multiple inputs: %s", filepath.ToSlash(output))
@@ -282,21 +249,13 @@ func run(_ context.Context, cmd *cli.Command) error {
 			}
 
 			outputDirectory = true
-
-			outs := make([]string, len(inputs))
-
-			for i := range inputs {
-				outs[i] = outDir
-			}
-
-			outputs = outs
 		}
 	}
 
 	plans := make([]outputPlan, len(inputs))
 
 	for index := range inputs {
-		plan, err := resolveOutput(inputs[index], outputs[index], outputDirectory, cmd, splitX, splitY)
+		plan, err := resolveOutput(inputs[index], output, outputDirectory, cmd, splitX, splitY, index)
 		if err != nil {
 			return err
 		}
