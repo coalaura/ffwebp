@@ -540,6 +540,78 @@
         190
       ],
       "loops": 0
+    },
+    {
+      "file": "inputs/dds-legacy-bc1.dds",
+      "purpose": "Analytically authored DDS: legacy BC1 endpoints and all four color indices",
+      "reference": [
+        "reference/de0a70e6c95dcebc.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dds-dx10-bc3.dds",
+      "purpose": "Analytically authored DDS: DX10 BC3 color and alpha endpoints/indices",
+      "reference": [
+        "reference/f148ed8a4ce7c9c9.png"
+      ],
+      "tolerance": 1
+    },
+    {
+      "file": "inputs/dds-rgba8.dds",
+      "purpose": "Analytically authored DDS: exact RGBA8, partial/zero alpha and hidden RGB",
+      "reference": [
+        "reference/df4913efe8debedd.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dds-rgba16.dds",
+      "purpose": "Analytically authored DDS: RGBA16 with significant low bytes",
+      "reference": [
+        "reference/50a667c75ece868d.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dds-cube-array.dds",
+      "purpose": "Analytically authored DDS: two cubes, coordinate-coded faces and two mips",
+      "reference": [
+        "reference/f0110286fbc1bee4.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dds-volume.dds",
+      "purpose": "Analytically authored DDS: coordinate-coded volume slices and two mips",
+      "reference": [
+        "reference/4116ac659c9c27eb.png"
+      ],
+      "tolerance": 0
+    },
+    {
+      "file": "inputs/dds-typeless-hdr.dds",
+      "purpose": "Analytically authored DDS: typeless float payload with signed/HDR channels; explicit interpreted/clamped preview",
+      "reference": [
+        "reference/f6f1c385d5db8457.png"
+      ],
+      "tolerance": 1,
+      "arguments": [
+        "--dds.interpret",
+        "R32G32B32A32_FLOAT",
+        "--dds.display",
+        "clamp",
+        "--dds.precision",
+        "8"
+      ]
+    },
+    {
+      "file": "inputs/dds-premultiplied-srgb.dds",
+      "purpose": "Analytically authored DDS: linear-associated sRGB with partial and zero alpha",
+      "reference": [
+        "reference/41ad655edb2adc67.png"
+      ],
+      "tolerance": 1
     }
   ]
 }

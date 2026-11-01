@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -29,6 +30,7 @@ type fixture struct {
 	Tolerance int
 	Delays    []int
 	Loops     int
+	Arguments []string
 }
 
 type fixtureManifest struct {
@@ -115,7 +117,10 @@ func TestCLI_FixtureDecode(t *testing.T) {
 
 			out := filepath.Join(t.TempDir(), "decoded.png")
 
-			run(t, icmd.Command(executable, "-s", "--sniff", "-i", filepath.Join(fixturesDir, test.File), "-o", out, "--frame", "0"))
+			arguments := []string{"-s", "--sniff", "-i", filepath.Join(fixturesDir, test.File), "-o", out, "--frame", "0"}
+			arguments = append(arguments, test.Arguments...)
+
+			run(t, icmd.Command(executable, arguments...))
 			assertPixelsWithin(t, readPNG(t, out), readPNG(t, filepath.Join(fixturesDir, test.Reference[0])), test.Tolerance)
 		})
 	}
@@ -180,7 +185,7 @@ func TestCLI_FixtureAnimation(t *testing.T) {
 
 func TestCLI_CodecEncode(t *testing.T) {
 	// One smoke test per encoder, independent of the number of input variants.
-	for ext := range strings.FieldsSeq("avif bmp ff gif heic heif ico cur jpeg jxl pcx png apng pnm pbm pgm ppm pam qoi tga tif tiff webp xbm xpm") {
+	for ext := range strings.FieldsSeq("avif bmp dds ff gif heic heif ico cur jpeg jxl pcx png apng pnm pbm pgm ppm pam qoi tga tif tiff webp xbm xpm") {
 		t.Run(ext, func(t *testing.T) {
 			dir := t.TempDir()
 			mid := filepath.Join(dir, "encoded."+ext)
@@ -192,6 +197,48 @@ func TestCLI_CodecEncode(t *testing.T) {
 			got := readPNG(t, back).Bounds()
 			if got != image.Rect(0, 0, 120, 90) {
 				t.Fatalf("bounds: got %v, want 120x90", got)
+			}
+		})
+	}
+}
+
+func TestCLI_DDSTexturePreservation(t *testing.T) {
+	for name := range strings.FieldsSeq("dds-cube-array.dds dds-volume.dds dds-typeless-hdr.dds") {
+		t.Run(name, func(t *testing.T) {
+			input := filepath.Join(fixturesDir, "inputs", name)
+			output := filepath.Join(t.TempDir(), name)
+
+			run(t, icmd.Command(executable, "-s", "-i", input, "-o", output, "--lossless"))
+
+			expected, err := os.ReadFile(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			actual, err := os.ReadFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(expected) < 148 || len(actual) != len(expected) {
+				t.Fatalf("DDS size: got %d, want %d with a DX10 header", len(actual), len(expected))
+			}
+
+			if string(actual[:4]) != "DDS " || string(actual[84:88]) != "DX10" {
+				t.Fatal("missing DDS/DX10 signature")
+			}
+
+			// Check dimensions and mip count independently of the DDS decoder.
+			depth := max(1, binary.LittleEndian.Uint32(actual[24:28]))
+			wantDepth := max(1, binary.LittleEndian.Uint32(expected[24:28]))
+
+			if !bytes.Equal(actual[12:20], expected[12:20]) || depth != wantDepth || !bytes.Equal(actual[28:32], expected[28:32]) {
+				t.Fatal("DDS dimensions or mip count changed")
+			}
+
+			// The DX10 extension carries format, dimension, cube/array and alpha metadata.
+			if !bytes.Equal(actual[128:], expected[128:]) {
+				t.Fatal("DDS metadata or native subresource payload changed")
 			}
 		})
 	}

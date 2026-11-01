@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func decodeInput(input string, cmd *cli.Command, logger io.Writer) (img image.Image, animation *codec.Animation, err error) {
+func decodeInput(input string, output codec.Codec, cmd *cli.Command, logger io.Writer) (img image.Image, animation *codec.Animation, native func(io.Writer) error, err error) {
 	var reader io.Reader = os.Stdin
 
 	if input != "-" {
@@ -21,7 +21,7 @@ func decodeInput(input string, cmd *cli.Command, logger io.Writer) (img image.Im
 
 		file, openErr := os.Open(input)
 		if openErr != nil {
-			return nil, nil, openErr
+			return nil, nil, nil, openErr
 		}
 
 		defer func() {
@@ -41,34 +41,48 @@ func decodeInput(input string, cmd *cli.Command, logger io.Writer) (img image.Im
 
 	sniffed, reader, err := codec.Sniff(reader, input, forced, cmd.Bool("sniff"))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	logx.Fprintf(logger, "sniffed codec: %s (%q, forced=%v)\n", sniffed.Codec, sniffed, forced != "")
 
+	for _, registered := range codec.All() {
+		if processor, ok := registered.(codec.InputProcessor); ok {
+			err := processor.ValidateRoute(sniffed.Codec, output)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+		}
+	}
+
+	if processor, ok := sniffed.Codec.(codec.InputProcessor); ok {
+		img, native, err = processor.DecodeInput(reader, output, logger)
+		return img, nil, native, err
+	}
+
 	if decoder, ok := sniffed.Codec.(codec.AnimatedDecoder); ok {
 		animation, err := decoder.DecodeAll(reader)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		if animation == nil || len(animation.Frames) == 0 {
-			return nil, nil, errors.New("decoded animation has no frames")
+			return nil, nil, nil, errors.New("decoded animation has no frames")
 		}
 
-		return nil, animation, nil
+		return nil, animation, nil, nil
 	}
 
 	img, err = sniffed.Codec.Decode(reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if img == nil || img.Bounds().Empty() {
-		return nil, nil, errors.New("decoded image is empty")
+		return nil, nil, nil, errors.New("decoded image is empty")
 	}
 
-	return img, nil, nil
+	return img, nil, nil, nil
 }
 
 func selectAnimationFrame(animation *codec.Animation, cmd *cli.Command, logger io.Writer) (image.Image, error) {

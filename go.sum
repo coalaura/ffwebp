@@ -2,6 +2,8 @@ github.com/andybalholm/brotli v1.2.7 h1:UgafRPGMam5ySHfRkhthMqOFA6IFoeF3D7mWIDLj
 github.com/andybalholm/brotli v1.2.7/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/anthonynsimon/bild v0.17.1 h1:CVcoR+jxUx++UBXpVJHTjt7RmfEbsnhtlqPR5utSfiU=
 github.com/anthonynsimon/bild v0.17.1/go.mod h1:eUfWJXV5GGXA2Gobz4osvpJdkdEVZpXwDSJi/PAXnpA=
+github.com/coalaura/dds v0.2.0 h1:4wbvHeJyaWRETvKWuXAZepgL2tQF/LPQSm5wVx6UCPE=
+github.com/coalaura/dds v0.2.0/go.mod h1:DyVEBXmChBrm1/aWfpEOYHv9q2i36cY/RbHJPyz3CYw=
 github.com/coalaura/webp v1.6.6 h1:PoximmBniL8jET69sg55T+NYGOyW/YEQkAI/Ux+ycsY=
 github.com/coalaura/webp v1.6.6/go.mod h1:wBAV6t/ugy+Z0n2nStN8clIQghlnvJBtE0O2fLcZLo4=
 github.com/coalaura/xbm v0.0.4 h1:B8TKdo44fogAAnpWKSeABqUtspLpnwVlU4lwNYJKXEE=

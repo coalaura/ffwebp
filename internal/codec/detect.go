@@ -67,6 +67,23 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 		}
 	}
 
+	// DDS must reach its budgeted loader before the general whole-input sniffer.
+	var prefix [4]byte
+
+	count, err := io.ReadFull(reader, prefix[:])
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, nil, err
+	}
+
+	reader = io.MultiReader(bytes.NewReader(prefix[:count]), reader)
+
+	if count == 4 && string(prefix[:]) == "DDS " {
+		dds, ok := Get("dds")
+		if ok {
+			return &Sniffed{Header: prefix[:], Confidence: 100, Codec: dds}, reader, nil
+		}
+	}
+
 	buf, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, err

@@ -10,10 +10,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
-
-from PIL import Image, ImageDraw, features
-import PIL
-import tifffile
+import zlib
 
 ROOT = Path(__file__).resolve().parent
 SOURCE_SHA256 = "894d8eecadcdd8d11a6ccf5e67d5ceff05e5d632f8569274c6a4a23ca2bab6f2"
@@ -55,7 +52,81 @@ def normalize_avif_times(path):
     path.write_bytes(data)
 
 
+def generate_dds(out):
+    """Eight analytically authored DDS files; no DDS/DirectXTex encoder oracle."""
+    cases = []
+
+    def png(width, height, pixels, depth=8):
+        def chunk(kind, data):
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+        stride = width * 4 * (depth // 8)
+        rows = b"".join(b"\0" + pixels[row * stride:(row + 1) * stride] for row in range(height))
+        header = struct.pack(">IIBBBBB", width, height, depth, 6, 0, 0, 0)
+        data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b"")
+        name = hashlib.sha256(data).hexdigest()[:16] + ".png"
+        (out / "reference" / name).write_bytes(data)
+        return "reference/" + name
+
+    def add(name, purpose, width, height, payload, expected, fmt=28, mips=1, items=1, depth=1, cube=False, alpha=1, legacy=False, bits=32, reference_depth=8, arguments=None, tolerance=0):
+        header = bytearray(148 if not legacy else 128)
+        header[:4] = b"DDS "
+        flags = 0x1007 | (0x80000 if fmt in (71, 77) else 8) | (0x20000 if mips > 1 else 0) | (0x800000 if depth > 1 else 0)
+        pitch = (8 if fmt == 71 else 16) if fmt in (71, 77) else width * bits // 8
+        struct.pack_into("<7I", header, 4, 124, flags, height, width, pitch, depth if depth > 1 else 0, mips)
+        struct.pack_into("<II4s", header, 76, 32, 4, b"DXT1" if legacy else b"DX10")
+        caps = 0x1000 | (0x400008 if mips > 1 else 0) | (8 if cube or depth > 1 else 0)
+        struct.pack_into("<II", header, 108, caps, 0xfe00 if cube else 0x200000 if depth > 1 else 0)
+        if not legacy:
+            struct.pack_into("<5I", header, 128, fmt, 4 if depth > 1 else 3, 4 if cube else 0, items // 6 if cube else items, alpha)
+        (out / "inputs" / name).write_bytes(header + payload)
+        case = {"file": "inputs/" + name, "purpose": "Analytically authored DDS: " + purpose,
+                "reference": [png(width, height, expected, reference_depth)], "tolerance": tolerance}
+        if arguments:
+            case["arguments"] = arguments
+        cases.append(case)
+
+    colors = [(255, 0, 0, 255), (0, 255, 0, 255), (170, 85, 0, 255), (85, 170, 0, 255)]
+    add("dds-legacy-bc1.dds", "legacy BC1 endpoints and all four color indices", 4, 4,
+        struct.pack("<HHI", 0xf800, 0x07e0, 0xe4e4e4e4), bytes(sum(colors * 4, ())), fmt=71, alpha=0, legacy=True)
+    alpha_values = [255, 0, 218, 182, 145, 109, 72, 36]
+    indices = sum((index % 8) << (index * 3) for index in range(16))
+    payload = bytes([255, 0]) + indices.to_bytes(6, "little") + struct.pack("<HHI", 0xf800, 0, 0)
+    expected = bytes(sum(((255, 0, 0, alpha_values[index % 8]) for index in range(16)), ()))
+    add("dds-dx10-bc3.dds", "DX10 BC3 color and alpha endpoints/indices", 4, 4, payload, expected, fmt=77, tolerance=1)
+
+    rgba = bytes(sum(((x * 51, y * 61, (x + y) * 29, x * 85) for y in range(4) for x in range(4)), ()))
+    add("dds-rgba8.dds", "exact RGBA8, partial/zero alpha and hidden RGB", 4, 4, rgba, rgba)
+    values = [(1001 + x * 997, 5011 + y * 541, 12013 + x * 787, (0, 21845, 65535)[x]) for y in range(2) for x in range(3)]
+    add("dds-rgba16.dds", "RGBA16 with significant low bytes", 3, 2,
+        b"".join(struct.pack("<4H", *value) for value in values), b"".join(struct.pack(">4H", *value) for value in values), fmt=11, bits=64, reference_depth=16)
+
+    surfaces = [bytes(sum(((item * 17, mip * 60 + x * 20, y * 30, 255) for y in range(4 >> mip) for x in range(4 >> mip)), ())) for item in range(12) for mip in range(2)]
+    add("dds-cube-array.dds", "two cubes, coordinate-coded faces and two mips", 4, 4, b"".join(surfaces), surfaces[0], mips=2, items=12, cube=True)
+    surfaces = [bytes(sum(((slice_index * 90 + x * 20, y * 40, mip * 70, 255) for y in range(max(1, 2 >> mip)) for x in range(4 >> mip)), ())) for mip in range(2) for slice_index in range(max(1, 2 >> mip))]
+    add("dds-volume.dds", "coordinate-coded volume slices and two mips", 4, 2, b"".join(surfaces), surfaces[0], mips=2, depth=2)
+
+    payload = struct.pack("<8f", -0.5, 2, 0.25, 1, 0.75, 0.5, -2, 0.5)
+    add("dds-typeless-hdr.dds", "typeless float payload with signed/HDR channels; explicit interpreted/clamped preview", 2, 1, payload,
+        bytes([0, 255, 64, 255, 191, 128, 0, 128]), fmt=1, bits=128, tolerance=1,
+        arguments=["--dds.interpret", "R32G32B32A32_FLOAT", "--dds.display", "clamp", "--dds.precision", "8"])
+    add("dds-premultiplied-srgb.dds", "linear-associated sRGB with partial and zero alpha", 4, 1,
+        bytes([188, 0, 0, 128, 0, 188, 0, 128, 0, 0, 0, 0, 255, 255, 255, 255]),
+        bytes([255, 0, 0, 128, 0, 255, 0, 128, 0, 0, 0, 0, 255, 255, 255, 255]), fmt=29, alpha=2, tolerance=1)
+    return cases
+
+
+def checksums(out):
+    files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != "SHA256SUMS")
+    values = "".join(f"{sha(p)}  {p.relative_to(out).as_posix()}\n" for p in files)
+    values += "".join(f"{sha(p)}  ../sources/{p.name}\n" for p in sorted((ROOT / "sources").glob("*")) if p.is_file())
+    (out / "SHA256SUMS").write_text(values)
+
+
 def generate(out):
+    from PIL import Image, ImageDraw, features
+    import PIL
+    import tifffile
+
     inputs = out / "inputs"
     refs = out / "reference"
     inputs.mkdir()
@@ -315,19 +386,29 @@ def generate(out):
                                 "libmagickcore-6.q16-7t64", "libjxl0.7", "libaom3", "libheif1",
                                 "libde265-0", "libx265-199", "libpng16-16t64").decode().splitlines()}
     (out / "toolchain.json").write_text(json.dumps(versions, indent=2) + "\n")
+    cases.extend(generate_dds(out))
     manifest = {"source_sha256": SOURCE_SHA256, "cases": cases}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     files = sorted(p for p in out.rglob("*") if p.is_file())
-    checksums = "".join(f"{sha(p)}  {p.relative_to(out).as_posix()}\n" for p in files)
-    checksums += "".join(f"{sha(p)}  ../sources/{p.name}\n" for p in sorted((ROOT / "sources").glob("*")) if p.is_file())
-    (out / "SHA256SUMS").write_text(checksums)
+    checksums(out)
     print(f"Generated {len(cases)} fixtures, {sum(p.stat().st_size for p in files):,} bytes")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="regenerate in a temporary directory and compare every byte")
+    parser.add_argument("--dds-only", action="store_true", help="regenerate only the analytic DDS additions and checksums")
     args = parser.parse_args()
+    if args.dds_only:
+        if args.check:
+            parser.error("--dds-only and --check are mutually exclusive")
+        out = ROOT / "fixtures"
+        manifest = json.loads((out / "manifest.json").read_text())
+        manifest["cases"] = [case for case in manifest["cases"] if not case["file"].startswith("inputs/dds-")]
+        manifest["cases"].extend(generate_dds(out))
+        (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        checksums(out)
+        return
     for tool in ("convert", "png2ff", "cjxl", "heif-enc", "heif-convert", "avifenc", "avifdec", "icotool", "gimp"):
         if not shutil.which(tool):
             parser.error(f"Missing {tool}; use the fixture Dockerfile (see integration/README.md)")

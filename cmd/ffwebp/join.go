@@ -85,7 +85,7 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 	for index, input := range inputs {
 		logx.Printf("join input %d: %q -> row=%d column=%d (zero-based)\n", index+1, filepath.ToSlash(input), index/options.Columns, index%options.Columns)
 
-		img, animation, err := decodeInput(input, cmd, nil)
+		img, animation, _, err := decodeInput(input, plan.codec, cmd, nil)
 		if err != nil {
 			return fmt.Errorf("join input %q: %w", input, err)
 		}

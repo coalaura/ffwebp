@@ -21,6 +21,13 @@ type Codec interface {
 	Encode(io.Writer, image.Image, opts.Common) error
 }
 
+// InputProcessor optionally retains a native resource instead of extracting an image.
+type InputProcessor interface {
+	Configure(*cli.Command) error
+	ValidateRoute(input, output Codec) error
+	DecodeInput(io.Reader, Codec, io.Writer) (image.Image, func(io.Writer) error, error)
+}
+
 var codecs = map[string]Codec{}
 
 func Register(c Codec) {

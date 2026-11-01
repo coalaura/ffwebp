@@ -181,6 +181,15 @@ func main() {
 func run(_ context.Context, cmd *cli.Command) error {
 	banner()
 
+	for _, registered := range codec.All() {
+		if processor, ok := registered.(codec.InputProcessor); ok {
+			err := processor.Configure(cmd)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	var (
 		output string
 
@@ -355,9 +364,20 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	t0 := time.Now()
 
-	img, anim, err := decodeInput(input, cmd, logger)
+	img, anim, native, err := decodeInput(input, oCodec, cmd, logger)
 	if err != nil {
 		return err
+	}
+
+	if native != nil {
+		written, err := writeOutput(output, cmd.Bool("skip-existing"), logger, native)
+		if err != nil {
+			return err
+		}
+
+		logx.Fprintf(logger, "saved native texture: %d KiB in %s\n", (written+1023)/1024, time.Since(t0).Truncate(time.Millisecond))
+
+		return nil
 	}
 
 	var (

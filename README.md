@@ -6,7 +6,7 @@ FFWebP is a small, single-binary CLI for converting images between formats, thin
 
 - Single binary: no external tools required
 - Auto-detects input codec and infers output from the file extension
-- Supports AVIF, BMP, DNG (embedded JPEG preview only), Farbfeld, GIF, HEIF/HEIC, ICO/CUR, JPEG, JPEG XL, PCX, PNG/APNG, PNM (PBM/PGM/PPM/PAM), PSD (decode-only), QOI, SVG (decode-only), TGA, TIFF, WebP, XBM, XCF (decode-only) and XPM
+- Supports AVIF, BMP, DDS, DNG (embedded JPEG preview only), Farbfeld, GIF, HEIF/HEIC, ICO/CUR, JPEG, JPEG XL, PCX, PNG/APNG, PNM (PBM/PGM/PPM/PAM), PSD (decode-only), QOI, SVG (decode-only), TGA, TIFF, WebP, XBM, XCF (decode-only) and XPM
 - Lossy or lossless output with configurable quality
 - Thumbnail generation via Lanczos3 resampling
 - Join ordered inputs into image grids with automatic sizing, alignment and backgrounds
