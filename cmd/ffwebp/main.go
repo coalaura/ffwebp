@@ -147,6 +147,9 @@ func main() {
 	flags = codec.Flags(flags)
 	flags = effects.Flags(flags)
 
+	cli.ShowCommandHelp = help.ShowCommandHelp
+	cli.HelpPrinter = help.PrintHelp
+
 	app := &cli.Command{
 		Name:                      "ffwebp",
 		Usage:                     "Convert any image format into any other image format",

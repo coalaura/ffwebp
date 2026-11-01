@@ -10,7 +10,7 @@ FFWebP is a small, single-binary CLI for converting images between formats, thin
 - Lossy or lossless output with configurable quality
 - Thumbnail generation via Lanczos3 resampling
 - Join ordered inputs into image grids with automatic sizing, alignment and backgrounds
-- Per-codec flags for fine-grained control (see `ffwebp --help`)
+- Per-codec flags for fine-grained control (see `ffwebp --help [format]`, e.g. `ffwebp --help webp`; `ffwebp help [topic]` also works and `ffwebp --help topics` lists available topics)
 
 ## Installation
 
