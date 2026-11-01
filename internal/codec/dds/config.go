@@ -30,7 +30,7 @@ type configuration struct {
 }
 
 var codecFlags = []cli.Flag{
-	&cli.StringFlag{Name: "dds.scope", Value: "auto", Usage: "DDS: auto|image|texture; auto preserves complete DDS-to-DDS textures; selectors choose image"},
+	&cli.StringFlag{Name: "dds.scope", Value: "auto", Usage: "DDS: auto|image|texture; auto preserves complete DDS-to-DDS textures; selectors choose image; image operations require image scope"},
 	&cli.IntFlag{Name: "dds.mip", Usage: "DDS: zero-based mip selection (image scope)"},
 	&cli.IntFlag{Name: "dds.item", Usage: "DDS: zero-based array item or cube face selection (image scope)"},
 	&cli.IntFlag{Name: "dds.slice", Usage: "DDS: zero-based depth slice selection (image scope)"},
@@ -42,18 +42,18 @@ var codecFlags = []cli.Flag{
 	&cli.StringFlag{Name: "dds.input-alpha", Value: "auto", Usage: "DDS: sample interpretation: auto|straight|premultiplied (does not multiply samples)"},
 	&cli.StringFlag{Name: "dds.premultiplication", Value: "linear", Usage: "DDS: premultiplied-sRGB input convention: linear|encoded (not a gamma toggle)"},
 	&cli.Int64Flag{Name: "dds.max-bytes", Usage: "DDS: input/native-payload loading budget: 0=512 MiB, or 148..2147483647; not a process memory cap"},
-	&cli.StringFlag{Name: "dds.load", Usage: "DDS: comma-separated compatibility flags; strict by default (see tokens below)"},
-	&cli.StringFlag{Name: "dds.decode-filter", Usage: "DDS: comma-separated image conversion controls (see tokens below)"},
-	&cli.StringFlag{Name: "dds.format", Value: "auto", Usage: "DDS: auto|FORMAT; native auto preserves storage, image auto uses precision-preserving uncompressed RGBA"},
+	&cli.StringFlag{Name: "dds.load", Usage: "DDS: comma-separated compatibility flags: " + bitNames(loadNames, 0) + "; default/none is strict"},
+	&cli.StringFlag{Name: "dds.decode-filter", Usage: "DDS: comma-separated image conversion flags: " + bitNames(filterNames, uint32(mipmapOnlyFilters)) + "; default/none disables flags"},
+	&cli.StringFlag{Name: "dds.format", Value: "auto", Usage: "DDS: auto|DXGI format (case-insensitive; e.g. rgba8, rgba16, bgra8, bc1..bc7); auto preserves native storage or image precision; BC encoding is lossy; --lossless can preserve existing BC; --quality is unsupported"},
 	&cli.StringFlag{Name: "dds.header", Value: "default", Usage: "DDS: default|auto|legacy|dx10; auto/legacy can lose alpha intent; legacy rejects unrepresentable textures"},
 	&cli.StringFlag{Name: "dds.alpha", Value: "auto", Usage: "DDS: output association: auto|straight|premultiplied; converts samples"},
 	&cli.StringFlag{Name: "dds.source-color", Value: "default", Usage: "DDS: image encoding only: default|linear|srgb; default follows destination transfer function"},
 	&cli.StringFlag{Name: "dds.mipmaps", Value: "keep", Usage: "DDS: keep|none|full|N; N includes base; keep adds none to images, full/N replaces the native chain"},
-	&cli.StringFlag{Name: "dds.mipmap-filter", Usage: "DDS: comma-separated mip filtering controls; separate-alpha is native-only"},
-	&cli.StringFlag{Name: "dds.convert-filter", Usage: "DDS: comma-separated uncompressed conversion controls"},
+	&cli.StringFlag{Name: "dds.mipmap-filter", Usage: "DDS: comma-separated mip flags: " + bitNames(filterNames, 0) + "; default/none disables flags; one filter/dither mode, no wrap+mirror on the same axis; separate-alpha is native-only"},
+	&cli.StringFlag{Name: "dds.convert-filter", Usage: "DDS: comma-separated uncompressed conversion flags: " + bitNames(filterNames, uint32(mipmapOnlyFilters)) + "; default/none disables flags"},
 	&cli.StringFlag{Name: "dds.bc7-effort", Value: "default", Usage: "DDS: default|quick|exhaustive; BC7 search effort, never bitrate or --quality"},
 	&cli.Float64Flag{Name: "dds.alpha-threshold", Value: 0.5, Usage: "DDS: 0..1, including explicit zero; BC1 compression or supported uncompressed conversion"},
-	&cli.StringFlag{Name: "dds.compression", Usage: "DDS: comma-separated BC compression controls; dithering/uniform require BC1-3"},
+	&cli.StringFlag{Name: "dds.compression", Usage: "DDS: comma-separated BC flags: " + bitNames(compressionNames, 0) + "; default/none disables flags; dithering/uniform require BC1-3"},
 }
 
 func (impl) Configure(command *cli.Command) error {
@@ -326,8 +326,7 @@ func filterValue(command *cli.Command, name string, mipmaps bool) (dds.FilterFla
 		return 0, fmt.Errorf("--dds.%s: %w", name, err)
 	}
 
-	mipmapOnly := dds.FilterWrapU | dds.FilterWrapV | dds.FilterWrapW | dds.FilterMirrorU | dds.FilterMirrorV | dds.FilterMirrorW | dds.FilterSeparateAlpha | filterModes
-	if !mipmaps && dds.FilterFlags(value)&mipmapOnly != 0 {
+	if !mipmaps && dds.FilterFlags(value)&mipmapOnlyFilters != 0 {
 		return 0, fmt.Errorf("--dds.%s: addressing, filter mode and separate-alpha apply only to mipmaps", name)
 	}
 

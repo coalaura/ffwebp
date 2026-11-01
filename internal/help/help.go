@@ -19,10 +19,6 @@ type HelpTopic struct {
 	Content     []byte
 }
 
-type DetailedHelper interface {
-	Help(io.Writer) error
-}
-
 var (
 	//go:embed topics/patterns.txt
 	topicPatterns []byte
@@ -157,13 +153,6 @@ func printFormat(w io.Writer, format codec.Codec) error {
 	err = writeHelp(w, options.String())
 	if err != nil {
 		return err
-	}
-
-	if detailed, ok := format.(DetailedHelper); ok {
-		err = detailed.Help(w)
-		if err != nil {
-			return err
-		}
 	}
 
 	fmt.Fprintln(w)

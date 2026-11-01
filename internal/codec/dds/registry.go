@@ -7,7 +7,10 @@ import (
 	"github.com/coalaura/dds"
 )
 
-const filterModes = dds.FilterPoint | dds.FilterLinear | dds.FilterCubic | dds.FilterBox | dds.FilterTriangle
+const (
+	filterModes       = dds.FilterPoint | dds.FilterLinear | dds.FilterCubic | dds.FilterBox | dds.FilterTriangle
+	mipmapOnlyFilters = dds.FilterWrapU | dds.FilterWrapV | dds.FilterWrapW | dds.FilterMirrorU | dds.FilterMirrorV | dds.FilterMirrorW | dds.FilterSeparateAlpha | filterModes
+)
 
 type namedBits struct {
 	name  string
@@ -191,11 +194,25 @@ func parseBits(value string, registry []namedBits, filter bool) (uint32, error) 
 	return result, nil
 }
 
-func bitNames(registry []namedBits) string {
+func bitNames(registry []namedBits, exclude uint32) string {
+	var size int
+
+	for _, entry := range registry {
+		if entry.value&exclude == 0 {
+			size += len(entry.name) + 2
+		}
+	}
+
 	var builder strings.Builder
 
-	for index, entry := range registry {
-		if index > 0 {
+	builder.Grow(size)
+
+	for _, entry := range registry {
+		if entry.value&exclude != 0 {
+			continue
+		}
+
+		if builder.Len() > 0 {
 			builder.WriteString(", ")
 		}
 
