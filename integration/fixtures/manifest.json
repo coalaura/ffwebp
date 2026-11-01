@@ -387,9 +387,9 @@
     },
     {
       "file": "inputs/mars.heic",
-      "purpose": "HEVC in HEIF container (heic/heif aliases)",
+      "purpose": "HEVC in HEIF container (heic/heif aliases); independent libheif bilinear chroma reference",
       "reference": [
-        "reference/0817c6cc70eae17d.png"
+        "reference/081d6432b81c6860.png"
       ],
       "tolerance": 3
     },

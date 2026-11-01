@@ -29,6 +29,17 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def generate_heic_reference(out):
+    # Match the decoder's bilinear chroma reconstruction, not libheif's default nearest-neighbor.
+    with tempfile.TemporaryDirectory(prefix="heic-reference-", dir=out) as temp:
+        decoded = Path(temp) / "decoded.png"
+        run("heif-convert", "--chroma-upsampling", "bilinear", "--png-compression-level", "9", out / "inputs/mars.heic", decoded)
+        data = decoded.read_bytes()
+    reference = "reference/" + hashlib.sha256(data).hexdigest()[:16] + ".png"
+    (out / reference).write_bytes(data)
+    return {"file": "inputs/mars.heic", "purpose": "HEVC in HEIF container (heic/heif aliases); independent libheif bilinear chroma reference", "reference": [reference], "tolerance": 3}
+
+
 def normalize_avif_times(path):
     """libavif 1.0 writes wall-clock ISO BMFF track times; zero only those fields."""
     data = bytearray(path.read_bytes())
@@ -264,9 +275,7 @@ def generate(out):
     run("cjxl", inputs / "alpha.png", inputs / "alpha.jxl", "-d", "0", "-e", "3", "--num_threads=1")
     add("alpha.jxl", "JPEG XL lossless alpha", rgba)
     run("heif-enc", "-q", "90", "-p", "x265:pools=none", "-o", inputs / "mars.heic", inputs / "mars-rgb.png")
-    run("heif-convert", inputs / "mars.heic", out / "heic.png")
-    add("mars.heic", "HEVC in HEIF container (heic/heif aliases)", Image.open(out / "heic.png"), tolerance=3)
-    (out / "heic.png").unlink()
+    cases.append(generate_heic_reference(out))
     run("avifenc", "--jobs", "1", "--speed", "8", "--qcolor", "90", inputs / "mars-rgb.png", inputs / "mars.avif")
     run("avifdec", inputs / "mars.avif", out / "avif.png")
     add("mars.avif", "AV1 still image in AVIF container", Image.open(out / "avif.png"), tolerance=3)
@@ -384,7 +393,8 @@ def generate(out):
                                 "imagemagick", "gimp", "farbfeld", "libjxl-tools", "libavif-bin",
                                 "libheif-examples", "libheif-plugin-x265", "libheif-plugin-libde265", "icoutils",
                                 "libmagickcore-6.q16-7t64", "libjxl0.7", "libaom3", "libheif1",
-                                "libde265-0", "libx265-199", "libpng16-16t64").decode().splitlines()}
+                                 "libde265-0", "libx265-199", "libpng16-16t64").decode().splitlines()}
+    versions["heic_reference_libheif"] = run("heif-convert", "--version").decode().splitlines()[0]
     (out / "toolchain.json").write_text(json.dumps(versions, indent=2) + "\n")
     cases.extend(generate_dds(out))
     manifest = {"source_sha256": SOURCE_SHA256, "cases": cases}
@@ -396,12 +406,28 @@ def generate(out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="regenerate in a temporary directory and compare every byte")
-    parser.add_argument("--dds-only", action="store_true", help="regenerate only the analytic DDS additions and checksums")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--check", action="store_true", help="regenerate in a temporary directory and compare every byte")
+    modes.add_argument("--dds-only", action="store_true", help="regenerate only the analytic DDS additions and checksums")
+    modes.add_argument("--heic-reference-only", action="store_true", help="refresh only the independent HEIC reference, tool version and checksums")
     args = parser.parse_args()
+    if args.heic_reference_only:
+        out = ROOT / "fixtures"
+        manifest = json.loads((out / "manifest.json").read_text())
+        case = next(case for case in manifest["cases"] if case["file"] == "inputs/mars.heic")
+        previous = case["reference"]
+        case.update(generate_heic_reference(out))
+        versions = json.loads((out / "toolchain.json").read_text())
+        versions["heic_reference_libheif"] = run("heif-convert", "--version").decode().splitlines()[0]
+        (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        (out / "toolchain.json").write_text(json.dumps(versions, indent=2) + "\n")
+        used = {reference for case in manifest["cases"] for reference in case["reference"]}
+        for reference in previous:
+            if reference not in used:
+                (out / reference).unlink()
+        checksums(out)
+        return
     if args.dds_only:
-        if args.check:
-            parser.error("--dds-only and --check are mutually exclusive")
         out = ROOT / "fixtures"
         manifest = json.loads((out / "manifest.json").read_text())
         manifest["cases"] = [case for case in manifest["cases"] if not case["file"].startswith("inputs/dds-")]

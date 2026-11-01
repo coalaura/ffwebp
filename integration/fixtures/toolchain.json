@@ -24,5 +24,6 @@
     "libmagickcore-6.q16-7t64=8:6.9.12.98+dfsg1-5.2build2",
     "libpng16-16t64=1.6.43-5ubuntu0.6",
     "libx265-199=3.5-2build1"
-  ]
+  ],
+  "heic_reference_libheif": "1.23.7"
 }

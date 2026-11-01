@@ -12,8 +12,6 @@ go test -count=1 -v ./integration
 
 The suite builds its own temporary CLI binary. Docker and the fixture-generation tools are needed only to regenerate the corpus.
 
-The HEIC fixture currently exceeds its pixel tolerance with `github.com/gen2brain/h265` v0.2.4: RGB output uses different chroma interpolation from the reference (maximum channel error 12/255 versus the allowed 3/255). The raw YCbCr output agrees within 1/255 when converted with Go's standard nearest-neighbor chroma sampling. The fixture and tolerance remain unchanged.
-
 ## Coverage
 
 The suite checks fixture checksums, decoder pixels, animations, one encoder smoke test per output extension and focused adapter and CLI regressions. Per-file purposes, references and tolerances are recorded in [`fixtures/manifest.json`](fixtures/manifest.json).
