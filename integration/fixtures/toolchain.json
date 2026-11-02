@@ -25,5 +25,11 @@
     "libpng16-16t64=1.6.43-5ubuntu0.6",
     "libx265-199=3.5-2build1"
   ],
-  "heic_reference_libheif": "1.23.7"
+  "heic_reference_libheif": "1.23.7",
+  "jpeg_family_codecs": [
+    "2025.3.30",
+    "openjpeg 2.5.3",
+    "charls 2.4.2",
+    "libjxl 0.11.1"
+  ]
 }

@@ -55,6 +55,22 @@ func decodeInput(input string, output codec.Codec, cmd *cli.Command, logger io.W
 		}
 	}
 
+	for _, registered := range codec.All() {
+		if transcoder, ok := registered.(codec.ByteTranscoder); ok {
+			data, handled, err := transcoder.Transcode(reader, sniffed.Codec, output)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+
+			if handled {
+				return nil, nil, func(writer io.Writer) error {
+					_, err := writer.Write(data)
+					return err
+				}, nil
+			}
+		}
+	}
+
 	if processor, ok := sniffed.Codec.(codec.InputProcessor); ok {
 		img, native, err = processor.DecodeInput(reader, output, logger)
 		return img, nil, native, err

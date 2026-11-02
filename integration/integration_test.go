@@ -191,14 +191,21 @@ func TestCLI_FixtureAnimation(t *testing.T) {
 
 func TestCLI_CodecEncode(t *testing.T) {
 	// One smoke test per encoder, independent of the number of input variants.
-	for ext := range strings.FieldsSeq("avif bmp dds ff gif heic heif ico cur jpeg jxl pcx png apng pnm pbm pgm ppm pam qoi tga tif tiff webp xbm xpm") {
+	for ext := range strings.FieldsSeq("avif bmp dds ff gif heic heif ico cur jpeg jp2 j2k j2c jls jxl pcx png apng pnm pbm pgm ppm pam qoi tga tif tiff webp xbm xpm") {
 		t.Run(ext, func(t *testing.T) {
 			dir := t.TempDir()
 			mid := filepath.Join(dir, "encoded."+ext)
 			back := filepath.Join(dir, "roundtrip.png")
 
 			run(t, icmd.Command(executable, "-s", "-i", exampleJPEG, "-o", mid))
-			run(t, icmd.Command(executable, "-s", "-i", mid, "-o", back))
+
+			arguments := []string{"-s", "-i", mid, "-o", back}
+
+			if ext == "j2k" || ext == "j2c" {
+				arguments = append(arguments, "--jpeg2000.raw-color", "rgb")
+			}
+
+			run(t, icmd.Command(executable, arguments...))
 
 			got := readPNG(t, back).Bounds()
 			if got != image.Rect(0, 0, 120, 90) {

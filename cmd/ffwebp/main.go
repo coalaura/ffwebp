@@ -182,7 +182,7 @@ func run(_ context.Context, cmd *cli.Command) error {
 	banner()
 
 	for _, registered := range codec.All() {
-		if processor, ok := registered.(codec.InputProcessor); ok {
+		if processor, ok := registered.(codec.Configurator); ok {
 			err := processor.Configure(cmd)
 			if err != nil {
 				return err
@@ -375,7 +375,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 			return err
 		}
 
-		logx.Fprintf(logger, "saved native texture: %d KiB in %s\n", (written+1023)/1024, time.Since(t0).Truncate(time.Millisecond))
+		logx.Fprintf(logger, "saved native data: %d KiB in %s\n", (written+1023)/1024, time.Since(t0).Truncate(time.Millisecond))
 
 		return nil
 	}

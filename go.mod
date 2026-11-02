@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/anthonynsimon/bild v0.17.1
 	github.com/coalaura/dds v0.2.0
+	github.com/coalaura/jpeg v0.1.0
 	github.com/coalaura/webp v1.6.6
 	github.com/coalaura/xbm v0.0.4
 	github.com/coalaura/xpm v0.0.3
@@ -12,8 +13,6 @@ require (
 	github.com/ftrvxmtrx/tga v0.0.0-20150524081124-bd8e8d5be13a
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/h265 v0.2.4
-	github.com/gen2brain/jpegn v0.6.1
-	github.com/gen2brain/jpegxl v0.6.0
 	github.com/gen2brain/pngn v0.1.3
 	github.com/gonutz/xcf v0.0.0-20180404091035-c002b9533d97
 	github.com/hajimehoshi/ebiten/v2 v2.10.5
@@ -33,7 +32,6 @@ require (
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/ebitengine/gomobile v0.0.0-20260820040257-d11f821a26a6 // indirect
 	github.com/ebitengine/hideconsole v1.0.0 // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect

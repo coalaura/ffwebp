@@ -21,6 +21,21 @@ type Codec interface {
 	Encode(io.Writer, image.Image, opts.Common) error
 }
 
+// Configurator receives parsed CLI options before conversions start.
+type Configurator interface {
+	Configure(*cli.Command) error
+}
+
+// ByteTranscoder optionally converts encoded data without entering the pixel pipeline.
+type ByteTranscoder interface {
+	Transcode(io.Reader, Codec, Codec) ([]byte, bool, error)
+}
+
+// InputLimiter bounds detection before the codec's own bounded loader takes over.
+type InputLimiter interface {
+	InputLimit() int64
+}
+
 // InputProcessor optionally retains a native resource instead of extracting an image.
 type InputProcessor interface {
 	Configure(*cli.Command) error

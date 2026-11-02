@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/coalaura/jpeg/detect"
 )
 
 type Sniffed struct {
@@ -67,7 +69,7 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 		}
 	}
 
-	// DDS must reach its budgeted loader before the general whole-input sniffer.
+	// Budgeted formats must reach their loaders before the whole-input sniffer.
 	var prefix [4]byte
 
 	count, err := io.ReadFull(reader, prefix[:])
@@ -82,6 +84,41 @@ func Sniff(reader io.Reader, input, force string, ignoreExtension bool) (*Sniffe
 		if ok {
 			return &Sniffed{Header: prefix[:], Confidence: 100, Codec: dds}, reader, nil
 		}
+	}
+
+	limit := detect.DefaultHeaderLimit
+
+	if count >= 2 && prefix[0] == 0xff && prefix[1] == 0xd8 {
+		limit = jpegHeaderLimit()
+	}
+
+	format, replay, detectionErr := detect.DetectLimit(reader, limit)
+	reader = replay
+
+	if detectionErr == nil {
+		name := ""
+
+		switch format {
+		case detect.JPEG:
+			name = "jpeg"
+		case detect.JPEGLS:
+			name = "jpegls"
+		case detect.JP2, detect.J2K:
+			name = "jpeg2000"
+		case detect.JXLCodestream, detect.JXLContainer:
+			name = "jpegxl"
+		}
+
+		registered, ok := Get(name)
+		if !ok {
+			return nil, nil, fmt.Errorf("input %s requires the %s codec build tag", format, name)
+		}
+
+		return &Sniffed{Header: []byte(format.String()), Confidence: 100, Codec: registered}, reader, nil
+	}
+
+	if errors.Is(detectionErr, detect.ErrHeaderLimit) || errors.Is(detectionErr, detect.ErrMalformed) {
+		return nil, nil, fmt.Errorf("JPEG-family detection: %w; use --input.codec for a known format within its input limit", detectionErr)
 	}
 
 	buf, err := io.ReadAll(reader)
@@ -207,4 +244,28 @@ func FindCodec(ext string, requireEncode bool) (Codec, error) {
 	}
 
 	return nil, nil
+}
+
+func jpegHeaderLimit() int {
+	limit := int64(0)
+	names := []string{"jpeg", "jpegls"}
+
+	for _, name := range names {
+		if bounded, ok := codecs[name].(InputLimiter); ok {
+			budget := bounded.InputLimit()
+			if budget <= 0 {
+				return detect.DefaultHeaderLimit
+			}
+
+			limit = max(limit, budget)
+		}
+	}
+
+	if limit == 0 {
+		return detect.DefaultHeaderLimit
+	}
+
+	// The SOI marker is shared: neither codec's smaller budget may exclude
+	// valid input for the other before its frame marker identifies it.
+	return int(min(limit, detect.DefaultHeaderLimit))
 }

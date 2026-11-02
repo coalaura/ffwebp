@@ -316,6 +316,10 @@ func joinOpaqueOutput(plan *outputPlan, cmd *cli.Command) bool {
 	switch plan.codec.String() {
 	case "jpeg", "bmp", "pcx", "xbm":
 		return true
+	case "jpegls":
+		return !cmd.Bool("jpegls.rgba")
+	case "jpeg2000":
+		return plan.extension == "j2k" || plan.extension == "j2c"
 	case "pnm":
 		format := strings.ToLower(cmd.String("pnm.format"))
 		if format == "" {

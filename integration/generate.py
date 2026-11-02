@@ -126,6 +126,42 @@ def generate_dds(out):
     return cases
 
 
+def generate_jpeg_family(out):
+    """Independent OpenJPEG, CharLS and libjxl encoders from pinned imagecodecs."""
+    import imagecodecs
+    import numpy as np
+
+    cases = []
+
+    def reference(pixels):
+        data = imagecodecs.png_encode(pixels, level=9)
+        name = "reference/" + hashlib.sha256(data).hexdigest()[:16] + ".png"
+        (out / name).write_bytes(data)
+        return name
+
+    rows, columns = np.indices((7, 9), dtype=np.uint16)
+    gray = columns * 997 + rows * 541 + 1001
+    rgb = np.stack((gray, gray * 3, gray * 5), axis=-1)
+    for name, data, pixels, arguments in [
+        ("jpeg-family.jp2", imagecodecs.jpeg2k_encode(rgb, codecformat="jp2", reversible=True, numthreads=1), rgb, []),
+        ("jpeg-family.j2k", imagecodecs.jpeg2k_encode(rgb, codecformat="j2k", reversible=True, numthreads=1), rgb, ["--jpeg2000.raw-color", "rgb"]),
+        ("jpeg-family.jls", imagecodecs.jpegls_encode(gray, level=0), gray, []),
+    ]:
+        (out / "inputs" / name).write_bytes(data)
+        cases.append({"file": "inputs/" + name, "purpose": "Independent 16-bit lossless JPEG-family pixels with significant low bytes", "reference": [reference(pixels)], "tolerance": 0, "arguments": arguments})
+
+    frames = np.zeros((4, 8, 12, 3), dtype=np.uint8)
+    frames[1, :, :, 0] = 255
+    frames[2, :, :, 1] = 255
+    frames[3, :, :, 2] = 255
+    data = imagecodecs.jpegxl_encode(frames, lossless=True, effort=3, usecontainer=True, numthreads=1)
+    if not np.array_equal(imagecodecs.jpegxl_decode(data), frames):
+        raise RuntimeError("Independent JXL animation roundtrip changed pixels")
+    (out / "inputs/jpeg-family-timed.jxl").write_bytes(data)
+    cases.append({"file": "inputs/jpeg-family-timed.jxl", "purpose": "Independent libjxl timed RGB animation", "reference": [reference(frame) for frame in frames], "tolerance": 0, "delays": [100, 100, 100, 100], "loops": 0})
+    return cases
+
+
 def checksums(out):
     files = sorted(p for p in out.rglob("*") if p.is_file() and p.name != "SHA256SUMS")
     values = "".join(f"{sha(p)}  {p.relative_to(out).as_posix()}\n" for p in files)
@@ -395,8 +431,10 @@ def generate(out):
                                 "libmagickcore-6.q16-7t64", "libjxl0.7", "libaom3", "libheif1",
                                  "libde265-0", "libx265-199", "libpng16-16t64").decode().splitlines()}
     versions["heic_reference_libheif"] = run("heif-convert", "--version").decode().splitlines()[0]
+    versions["jpeg_family_codecs"] = jpeg_family_versions()
     (out / "toolchain.json").write_text(json.dumps(versions, indent=2) + "\n")
     cases.extend(generate_dds(out))
+    cases.extend(generate_jpeg_family(out))
     manifest = {"source_sha256": SOURCE_SHA256, "cases": cases}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     files = sorted(p for p in out.rglob("*") if p.is_file())
@@ -409,8 +447,20 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--check", action="store_true", help="regenerate in a temporary directory and compare every byte")
     modes.add_argument("--dds-only", action="store_true", help="regenerate only the analytic DDS additions and checksums")
+    modes.add_argument("--jpeg-only", action="store_true", help="regenerate only the independent JPEG-family additions and checksums")
     modes.add_argument("--heic-reference-only", action="store_true", help="refresh only the independent HEIC reference, tool version and checksums")
     args = parser.parse_args()
+    if args.jpeg_only:
+        out = ROOT / "fixtures"
+        manifest = json.loads((out / "manifest.json").read_text())
+        manifest["cases"] = [case for case in manifest["cases"] if not case["file"].startswith("inputs/jpeg-family")]
+        manifest["cases"].extend(generate_jpeg_family(out))
+        (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        versions = json.loads((out / "toolchain.json").read_text())
+        versions["jpeg_family_codecs"] = jpeg_family_versions()
+        (out / "toolchain.json").write_text(json.dumps(versions, indent=2) + "\n")
+        checksums(out)
+        return
     if args.heic_reference_only:
         out = ROOT / "fixtures"
         manifest = json.loads((out / "manifest.json").read_text())
@@ -461,6 +511,12 @@ def main():
                 if backup.exists():
                     backup.rename(destination)
                 raise
+
+
+def jpeg_family_versions():
+    import imagecodecs
+
+    return [imagecodecs.__version__, imagecodecs.jpeg2k_version(), imagecodecs.jpegls_version(), imagecodecs.jpegxl_version()]
 
 
 if __name__ == "__main__":

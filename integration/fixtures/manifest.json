@@ -612,6 +612,54 @@
         "reference/41ad655edb2adc67.png"
       ],
       "tolerance": 1
+    },
+    {
+      "file": "inputs/jpeg-family.jp2",
+      "purpose": "Independent 16-bit lossless JPEG-family pixels with significant low bytes",
+      "reference": [
+        "reference/5d44f5179bb510ae.png"
+      ],
+      "tolerance": 0,
+      "arguments": []
+    },
+    {
+      "file": "inputs/jpeg-family.j2k",
+      "purpose": "Independent 16-bit lossless JPEG-family pixels with significant low bytes",
+      "reference": [
+        "reference/5d44f5179bb510ae.png"
+      ],
+      "tolerance": 0,
+      "arguments": [
+        "--jpeg2000.raw-color",
+        "rgb"
+      ]
+    },
+    {
+      "file": "inputs/jpeg-family.jls",
+      "purpose": "Independent 16-bit lossless JPEG-family pixels with significant low bytes",
+      "reference": [
+        "reference/c4e712d66cdc0595.png"
+      ],
+      "tolerance": 0,
+      "arguments": []
+    },
+    {
+      "file": "inputs/jpeg-family-timed.jxl",
+      "purpose": "Independent libjxl timed RGB animation",
+      "reference": [
+        "reference/c4ec89fed41ea286.png",
+        "reference/c04ddebc62e34d97.png",
+        "reference/9e36ddbf0bb64ce0.png",
+        "reference/3d83e04434160f4d.png"
+      ],
+      "tolerance": 0,
+      "delays": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "loops": 0
     }
   ]
 }
