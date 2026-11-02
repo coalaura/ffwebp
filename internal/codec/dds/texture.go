@@ -49,7 +49,7 @@ func (settings *configuration) processTexture(texture *dds.Texture, logger io.Wr
 
 	// Drop association before discarding alpha, just as the image encoder does.
 	dropAlpha := target != metadata.Format && !target.Info().Alpha && metadata.Format.Info().Alpha
-	if dropAlpha && alpha == dds.AlphaPremultiplied && !settings.explicit["alpha"] {
+	if dropAlpha && alpha == dds.AlphaPremultiplied && settings.encode.AlphaMode == dds.AlphaUnknown {
 		alpha = dds.AlphaStraight
 	}
 
@@ -69,7 +69,7 @@ func (settings *configuration) processTexture(texture *dds.Texture, logger io.Wr
 		return nil, err
 	}
 
-	if settings.explicit["alpha"] && alpha == dds.AlphaPremultiplied && !target.Info().Alpha {
+	if settings.encode.AlphaMode == dds.AlphaPremultiplied && !target.Info().Alpha {
 		return nil, fmt.Errorf("dds: premultiplied output requires an alpha channel")
 	}
 

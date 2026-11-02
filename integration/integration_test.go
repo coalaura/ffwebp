@@ -42,6 +42,12 @@ type frameSelection struct {
 	value string
 }
 
+type ddsAlphaCase struct {
+	name string
+	mode string
+	err  string
+}
+
 var executable = "ffwebp"
 
 func TestMain(m *testing.M) {
@@ -242,6 +248,113 @@ func TestCLI_DDSTexturePreservation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCLI_DDSDropAlpha(t *testing.T) {
+	cases := []ddsAlphaCase{
+		{name: "straight", mode: "straight"},
+		{name: "omitted"},
+		{name: "auto", mode: "auto"},
+		{name: "premultiplied", mode: "premultiplied", err: "premultiplied output requires an alpha channel"},
+	}
+
+	var expected []byte
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			output := filepath.Join(t.TempDir(), "out.dds")
+			arguments := []string{"-s", "-i", "fixtures/inputs/dds-premultiplied-srgb.dds", "-o", output, "--dds.format", "BC6H_UF16"}
+
+			if test.mode != "" {
+				arguments = append(arguments, "--dds.alpha", test.mode)
+			}
+
+			result := icmd.RunCmd(icmd.Command(executable, arguments...))
+
+			if test.err != "" {
+				result.Assert(t, icmd.Expected{ExitCode: 1, Err: test.err})
+
+				_, err := os.Stat(output)
+				if !os.IsNotExist(err) {
+					t.Fatalf("rejected alpha mode published output: %v", err)
+				}
+
+				return
+			}
+
+			result.Assert(t, icmd.Success)
+
+			actual, err := os.ReadFile(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(actual) != 164 || string(actual[:4]) != "DDS " || string(actual[84:88]) != "DX10" || binary.LittleEndian.Uint32(actual[128:132]) != 95 {
+				t.Fatal("expected one BC6H_UF16 block with a DX10 header")
+			}
+
+			if test.mode == "straight" {
+				expected = actual
+			} else if !bytes.Equal(actual, expected) {
+				t.Fatal("alpha mode differs from explicit straight output")
+			}
+		})
+	}
+}
+
+func TestCLI_DDSLosslessPrecision(t *testing.T) {
+	t.Run("rgba8-to-rgba16-cube-array", func(t *testing.T) {
+		input := "fixtures/inputs/dds-cube-array.dds"
+		output := filepath.Join(t.TempDir(), "out.dds")
+
+		run(t, icmd.Command(executable, "-s", "-i", input, "-o", output, "--lossless", "--dds.format", "R16G16B16A16_UNORM"))
+
+		expected, err := os.ReadFile(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		actual, err := os.ReadFile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(expected) < 148 || len(actual) != 148+2*(len(expected)-148) {
+			t.Fatalf("unexpected widened DDS size: input=%d, output=%d", len(expected), len(actual))
+		}
+
+		if string(actual[:4]) != "DDS " || string(actual[84:88]) != "DX10" || binary.LittleEndian.Uint32(actual[128:132]) != 11 {
+			t.Fatal("expected RGBA16_UNORM with a DX10 header")
+		}
+
+		// Dimensions, depth, mips and both legacy/DX10 cube-array topology must survive.
+		depth := max(1, binary.LittleEndian.Uint32(actual[24:28]))
+		wantDepth := max(1, binary.LittleEndian.Uint32(expected[24:28]))
+
+		if !bytes.Equal(actual[12:20], expected[12:20]) || depth != wantDepth || !bytes.Equal(actual[28:32], expected[28:32]) || !bytes.Equal(actual[108:116], expected[108:116]) || !bytes.Equal(actual[132:148], expected[132:148]) {
+			t.Fatal("lossless conversion changed texture topology or alpha metadata")
+		}
+
+		for index, sample := range expected[148:] {
+			actualSample := binary.LittleEndian.Uint16(actual[148+2*index:])
+			want := uint16(sample) * 257
+
+			if actualSample != want {
+				t.Fatalf("sample %d: got %d, want %d", index, actualSample, want)
+			}
+		}
+	})
+
+	t.Run("rgba16-to-rgba8-rejected", func(t *testing.T) {
+		output := filepath.Join(t.TempDir(), "out.dds")
+		result := icmd.RunCmd(icmd.Command(executable, "-s", "-i", "fixtures/inputs/dds-rgba16.dds", "-o", output, "--lossless", "--dds.format", "R8G8B8A8_UNORM"))
+		result.Assert(t, icmd.Expected{ExitCode: 1, Err: "--lossless prohibits lossy precision/range conversion"})
+
+		_, err := os.Stat(output)
+		if !os.IsNotExist(err) {
+			t.Fatalf("rejected precision loss published output: %v", err)
+		}
+	})
 }
 
 func TestCLI_MarsSource(t *testing.T) {
