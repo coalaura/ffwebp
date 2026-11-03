@@ -102,12 +102,32 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 		FancyUpsampling:  jpegutil.OptionalBool(command, "jpeg.fancy-upsampling"),
 		BlockSmoothing:   jpegutil.OptionalBool(command, "jpeg.block-smoothing"),
 		AllowWarnings:    command.Bool("jpeg.allow-warnings"),
+		ReadMetadata:     true,
 		MaxScans:         command.Int("jpeg.max-scans"),
 		MaxPixels:        command.Uint64("jpeg.max-pixels"),
 		MaxInputBytes:    command.Int64("jpeg.max-input-bytes"),
 	}
 
-	return classic.DecodeWithOptions(reader, &settings)
+	samples, err := classic.DecodeSamples(reader, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	profile, err := readICC(samples.Markers)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(profile) > 0 && samples.ColorSpace == classic.CMYK {
+		return nil, fmt.Errorf("jpeg: CMYK ICC profiles require color conversion; convert the source profile and pixels to RGB together before processing")
+	}
+
+	img, err := displayImage(samples)
+	if err != nil {
+		return nil, err
+	}
+
+	return &codec.ProfiledImage{Image: img, ICC: profile, Channels: codec.ImageChannels(img)}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error {
@@ -152,6 +172,20 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 		if err != nil {
 			return err
 		}
+	}
+
+	err := codec.ValidateICC(codec.ImageChannels(img), common.ICC)
+	if err != nil {
+		if command.String("jpeg.subsampling") == "gray" {
+			return fmt.Errorf("jpeg: %w; remove --jpeg.subsampling gray to retain an RGB profile", err)
+		}
+
+		return err
+	}
+
+	settings.Markers, err = profileMarkers(common.ICC)
+	if err != nil {
+		return err
 	}
 
 	return classic.Encode(writer, img, &settings)

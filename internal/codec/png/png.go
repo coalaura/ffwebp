@@ -77,32 +77,20 @@ func (adapter impl) Decode(reader io.Reader) (image.Image, error) {
 }
 
 func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
-	var prefix bytes.Buffer
-
-	animated, err := pngn.Animated(io.TeeReader(reader, &prefix))
-	if err != nil {
-		return nil, err
-	}
-
-	// Replay the consumed header even for stdin; collect metadata with the sole pixel decode.
+	// Observe chunk metadata during the sole pixel decode, including on stdin.
+	input := &metadataReader{reader: reader, remaining: 8, channels: 4}
 	metadata := new(pngn.Metadata)
 
-	animation, err := pngn.DecodeAll(io.MultiReader(bytes.NewReader(prefix.Bytes()), reader), &pngn.Options{Metadata: metadata})
+	animation, err := pngn.DecodeAll(input, &pngn.Options{Metadata: metadata})
 	if err != nil {
 		return nil, err
 	}
 
-	channels := 4
-
-	header := prefix.Bytes()
-	if len(header) > 25 {
-		switch header[25] {
-		case 0:
-			channels = 1
-		case 4:
-			channels = 2
-		}
+	if input.animated && len(input.delays) != len(animation.Image) {
+		return nil, fmt.Errorf("png: frame delay fractions do not match the decoded frame count")
 	}
+
+	channels := input.channels
 
 	var profile []byte
 
@@ -136,12 +124,13 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 
 	// DecodeAll already composites/disposes frames and excludes a separate default PNG image.
 	return &codec.Animation{
-		Frames:       animation.Image,
-		DelaySeconds: animation.Delay,
-		LoopCount:    loops,
-		Animated:     animated,
-		ICC:          profile,
-		Channels:     channels,
+		Frames:         animation.Image,
+		DelaySeconds:   animation.Delay,
+		DelayFractions: input.delays,
+		LoopCount:      loops,
+		Animated:       input.animated,
+		ICC:            profile,
+		Channels:       channels,
 	}, nil
 }
 

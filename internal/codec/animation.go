@@ -13,12 +13,18 @@ import (
 	"github.com/coalaura/ffwebp/internal/resize"
 )
 
-// Animation retains native ticks or seconds when available; Delays are milliseconds.
+type FrameDelay struct {
+	Numerator   uint32
+	Denominator uint32
+}
+
+// Animation retains native ticks, fractions or seconds when available; Delays are milliseconds.
 // LoopCount follows GIF: 0 loops forever, -1 plays once, and positive values count repeats.
 type Animation struct {
 	Frames           []image.Image
 	Delays           []int
 	DelaySeconds     []float64
+	DelayFractions   []FrameDelay
 	LoopCount        int
 	Background       color.RGBA
 	Animated         bool
@@ -161,6 +167,12 @@ func (animation *Animation) DelaysIn(units uint64) ([]int, error) {
 func (animation *Animation) SecondsAt(index int) float64 {
 	if index < len(animation.Durations) {
 		return float64(animation.Durations[index]) * float64(animation.TicksDenominator) / float64(animation.TicksNumerator)
+	}
+
+	if index < len(animation.DelayFractions) {
+		delay := animation.DelayFractions[index]
+
+		return float64(delay.Numerator) / float64(delay.Denominator)
 	}
 
 	if index < len(animation.DelaySeconds) {

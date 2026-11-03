@@ -22,7 +22,7 @@ func validateOutputICC(output codec.Codec, common *opts.Common) error {
 	}
 
 	switch output.String() {
-	case "jpegxl":
+	case "jpeg", "jpegxl":
 		return nil
 	case "jpeg2000":
 		if common.OutputExtension != "j2k" && common.OutputExtension != "j2c" {

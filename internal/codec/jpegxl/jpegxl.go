@@ -140,19 +140,33 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 	}
 
 	delays := animation.Delays
+	durations := animation.Durations
 
-	if len(animation.Durations) > 0 {
-		if len(animation.Durations) != len(animation.Frames) {
+	if len(durations) > 0 {
+		if len(durations) != len(animation.Frames) {
 			return fmt.Errorf("jpegxl: native durations must match the frame count")
 		}
 
 		native.TicksNumerator = animation.TicksNumerator
 		native.TicksDenominator = animation.TicksDenominator
+	} else if len(animation.DelayFractions) > 0 {
+		if len(animation.DelayFractions) != len(animation.Frames) {
+			return fmt.Errorf("jpegxl: delay fractions must match the frame count")
+		}
+
+		native.TicksNumerator, native.TicksDenominator, durations, err = exactTiming(animation.DelayFractions)
+		if err != nil {
+			return err
+		}
 	} else {
 		delays, err = animation.MillisecondDelays()
 		if err != nil {
 			return err
 		}
+	}
+
+	if native.TicksNumerator == 0 || native.TicksDenominator == 0 {
+		return fmt.Errorf("jpegxl: invalid animation time base")
 	}
 
 	switch animation.LoopCount {
@@ -179,8 +193,8 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 			delay = delays[index]
 		}
 
-		if len(animation.Durations) > 0 {
-			delay = int(animation.Durations[index])
+		if len(durations) > 0 {
+			delay = int(durations[index])
 		}
 
 		if delay < 0 || int64(delay) > math.MaxUint32 {
