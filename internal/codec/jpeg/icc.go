@@ -1,7 +1,6 @@
 package jpeg
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/coalaura/jpeg/classic"
@@ -12,61 +11,6 @@ const (
 	iccHeaderSize = len(iccSignature) + 2
 	iccPartSize   = 65533 - iccHeaderSize
 )
-
-func readICC(markers []classic.Marker) ([]byte, error) {
-	var (
-		parts [255][]byte
-		count int
-		total int
-		found int
-	)
-
-	for _, marker := range markers {
-		if marker.ID != 0xe2 || !bytes.HasPrefix(marker.Data, []byte(iccSignature)) {
-			continue
-		}
-
-		if len(marker.Data) <= iccHeaderSize {
-			return nil, fmt.Errorf("jpeg: truncated ICC_PROFILE APP2 segment")
-		}
-
-		sequence := int(marker.Data[len(iccSignature)])
-		declared := int(marker.Data[len(iccSignature)+1])
-
-		if sequence == 0 || declared == 0 || sequence > declared {
-			return nil, fmt.Errorf("jpeg: invalid ICC_PROFILE segment sequence %d/%d", sequence, declared)
-		}
-
-		if count != 0 && count != declared {
-			return nil, fmt.Errorf("jpeg: contradictory ICC_PROFILE segment counts %d and %d", count, declared)
-		}
-
-		if parts[sequence-1] != nil {
-			return nil, fmt.Errorf("jpeg: duplicate ICC_PROFILE segment %d", sequence)
-		}
-
-		count = declared
-		parts[sequence-1] = marker.Data[iccHeaderSize:]
-		total += len(parts[sequence-1])
-		found++
-	}
-
-	if found != count {
-		return nil, fmt.Errorf("jpeg: incomplete ICC_PROFILE segment set: got %d of %d", found, count)
-	}
-
-	if count == 0 {
-		return nil, nil
-	}
-
-	profile := make([]byte, 0, total)
-
-	for _, part := range parts[:count] {
-		profile = append(profile, part...)
-	}
-
-	return profile, nil
-}
 
 func profileMarkers(profile []byte) ([]classic.Marker, error) {
 	if len(profile) == 0 {

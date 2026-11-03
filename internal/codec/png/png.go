@@ -193,13 +193,22 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 
 	output := pngn.PNG{
 		Image:     animation.Frames,
-		Delay:     delays,
+		Delay:     make([]float64, len(delays)),
 		LoopCount: loops,
 	}
 
 	logx.Printf("png: frames=%d compression=%d\n", len(output.Image), compression)
 
-	return pngn.EncodeAll(writer, &output, &settings)
+	// pngn's float API cannot express every APNG fraction. Replace only fcTL
+	// timing and its CRC while forwarding the single pixel encode unchanged.
+	timing := &timingWriter{writer: writer, delays: delays, remaining: 8}
+
+	err = pngn.EncodeAll(timing, &output, &settings)
+	if err != nil {
+		return err
+	}
+
+	return timing.finish()
 }
 
 func profileMetadata(profile []byte) *pngn.Metadata {
@@ -225,49 +234,91 @@ func compressionLevel(level int) pngn.CompressionLevel {
 	}
 }
 
-func animationDelays(animation *codec.Animation) ([]float64, error) {
-	delays := make([]float64, len(animation.Frames))
+func animationDelays(animation *codec.Animation) ([]codec.FrameDelay, error) {
+	delays := make([]codec.FrameDelay, len(animation.Frames))
 	exact := true
 
 	for index := range delays {
-		delays[index] = animation.SecondsAt(index)
-		exact = representableDelay(delays[index]) && exact
+		var (
+			numerator   uint64
+			denominator uint64
+		)
+
+		switch {
+		case len(animation.Durations) > 0:
+			if len(animation.Durations) != len(delays) || animation.TicksNumerator == 0 || animation.TicksDenominator == 0 {
+				return nil, fmt.Errorf("png: invalid native animation timing")
+			}
+
+			numerator = uint64(animation.Durations[index]) * uint64(animation.TicksDenominator)
+			denominator = uint64(animation.TicksNumerator)
+		case len(animation.DelayFractions) > 0:
+			if len(animation.DelayFractions) != len(delays) || animation.DelayFractions[index].Denominator == 0 {
+				return nil, fmt.Errorf("png: invalid animation fractions")
+			}
+
+			numerator = uint64(animation.DelayFractions[index].Numerator)
+			denominator = uint64(animation.DelayFractions[index].Denominator)
+		case len(animation.DelaySeconds) > 0:
+			exact = false
+
+			continue
+		default:
+			denominator = 1000
+
+			if index < len(animation.Delays) {
+				if animation.Delays[index] < 0 {
+					return nil, fmt.Errorf("png: frame %d has a negative delay", index)
+				}
+
+				numerator = uint64(animation.Delays[index])
+			}
+		}
+
+		fraction, ok := pngFraction(numerator, denominator)
+		delays[index] = fraction
+
+		exact = exact && ok
 	}
 
 	if exact {
 		return delays, nil
 	}
 
-	// Quantize cumulative boundaries only when the encoder cannot retain the source fractions.
+	// Retain the existing cumulative millisecond fallback for unrepresentable fractions.
 	milliseconds, err := animation.MillisecondDelays()
 	if err != nil {
 		return nil, err
 	}
 
 	for index, delay := range milliseconds {
-		delays[index] = float64(delay) / 1000
-		if !representableDelay(delays[index]) {
-			return nil, fmt.Errorf("png: frame %d delay cannot be represented by the PNG encoder", index)
+		fraction, ok := pngFraction(uint64(delay), 1000)
+		if !ok {
+			return nil, fmt.Errorf("png: frame %d delay exceeds APNG's 16-bit fields; use JPEG XL output", index)
 		}
+
+		delays[index] = fraction
 	}
 
 	return delays, nil
 }
 
-func representableDelay(seconds float64) bool {
-	if seconds < 0 || math.IsNaN(seconds) || math.IsInf(seconds, 0) {
-		return false
+func pngFraction(numerator, denominator uint64) (codec.FrameDelay, bool) {
+	first := numerator
+	second := denominator
+
+	for second != 0 {
+		remainder := first % second
+		first = second
+		second = remainder
 	}
 
-	// pngn v0.1.3 tries these denominators, then rounds/clamps to 65535ms.
-	denominators := [...]float64{1000, 100, 60, 30, 25, 24, 10, 1}
+	numerator /= first
+	denominator /= first
 
-	for _, denominator := range denominators {
-		numerator := seconds * denominator
-		if numerator <= math.MaxUint16 && numerator == math.Trunc(numerator) {
-			return true
-		}
+	if numerator > math.MaxUint16 || denominator > math.MaxUint16 {
+		return codec.FrameDelay{}, false
 	}
 
-	return false
+	return codec.FrameDelay{Numerator: uint32(numerator), Denominator: uint32(denominator)}, true
 }

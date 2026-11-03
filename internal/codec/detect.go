@@ -12,6 +12,9 @@ import (
 	"github.com/coalaura/jpeg/detect"
 )
 
+// Covers the classic encoder's 4 MiB metadata budget plus normal JPEG headers.
+const jpegSniffLimit = 5 << 20
+
 type Sniffed struct {
 	Header     []byte
 	Confidence int
@@ -254,7 +257,7 @@ func jpegHeaderLimit() int {
 		if bounded, ok := codecs[name].(InputLimiter); ok {
 			budget := bounded.InputLimit()
 			if budget <= 0 {
-				return detect.DefaultHeaderLimit
+				budget = jpegSniffLimit
 			}
 
 			limit = max(limit, budget)
@@ -262,10 +265,10 @@ func jpegHeaderLimit() int {
 	}
 
 	if limit == 0 {
-		return detect.DefaultHeaderLimit
+		return jpegSniffLimit
 	}
 
 	// The SOI marker is shared: neither codec's smaller budget may exclude
 	// valid input for the other before its frame marker identifies it.
-	return int(min(limit, detect.DefaultHeaderLimit))
+	return int(min(limit, jpegSniffLimit))
 }

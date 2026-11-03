@@ -102,7 +102,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 		FancyUpsampling:  jpegutil.OptionalBool(command, "jpeg.fancy-upsampling"),
 		BlockSmoothing:   jpegutil.OptionalBool(command, "jpeg.block-smoothing"),
 		AllowWarnings:    command.Bool("jpeg.allow-warnings"),
-		ReadMetadata:     true,
+		ReadICC:          true,
 		MaxScans:         command.Int("jpeg.max-scans"),
 		MaxPixels:        command.Uint64("jpeg.max-pixels"),
 		MaxInputBytes:    command.Int64("jpeg.max-input-bytes"),
@@ -113,10 +113,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 		return nil, err
 	}
 
-	profile, err := readICC(samples.Markers)
-	if err != nil {
-		return nil, err
-	}
+	profile := samples.ICC
 
 	if len(profile) > 0 && samples.ColorSpace == classic.CMYK {
 		return nil, fmt.Errorf("jpeg: CMYK ICC profiles require color conversion; convert the source profile and pixels to RGB together before processing")
@@ -166,6 +163,11 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 	}
 
 	if command.String("jpeg.subsampling") == "gray" {
+		// Standard sRGB needs no profile transform for the existing implicit gray conversion.
+		if codec.StandardSRGB(common.ICC) {
+			common.ICC = nil
+		}
+
 		var err error
 
 		img, err = grayscale(img)

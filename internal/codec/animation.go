@@ -46,6 +46,10 @@ type AnimatedEncoder interface {
 }
 
 func (animation *Animation) FrameAt(target time.Duration) int {
+	if len(animation.DelayFractions) > 0 && len(animation.Durations) == 0 {
+		return animation.fractionFrameAt(target)
+	}
+
 	if len(animation.DelaySeconds) > 0 && len(animation.Durations) == 0 {
 		elapsed := float64(0)
 
@@ -98,6 +102,10 @@ func (animation *Animation) MillisecondDelays() ([]int, error) {
 
 // DelaysIn quantizes cumulative boundaries once, directly in destination units.
 func (animation *Animation) DelaysIn(units uint64) ([]int, error) {
+	if len(animation.DelayFractions) > 0 && len(animation.Durations) == 0 {
+		return animation.fractionDelaysIn(units)
+	}
+
 	if len(animation.DelaySeconds) > 0 && len(animation.Durations) == 0 {
 		return animation.secondsDelaysIn(units)
 	}
