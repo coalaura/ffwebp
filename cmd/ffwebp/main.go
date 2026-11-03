@@ -129,7 +129,7 @@ func main() {
 		&cli.BoolFlag{
 			Name:    "silent",
 			Aliases: []string{"s"},
-			Usage:   "hides all output",
+			Usage:   "hide progress output (safety warnings and errors remain visible)",
 			Action: func(_ context.Context, _ *cli.Command, silent bool) error {
 				if silent {
 					logx.SetSilent()
@@ -141,6 +141,10 @@ func main() {
 		&cli.BoolFlag{
 			Name:  "skip-existing",
 			Usage: "skip files that already exist at the output path",
+		},
+		&cli.BoolFlag{
+			Name:  "no-limits",
+			Usage: "bypass join pixel/grid and split tile safety caps; codec and system limits still apply",
 		},
 	}
 
@@ -180,6 +184,10 @@ func main() {
 
 func run(_ context.Context, cmd *cli.Command) error {
 	banner()
+
+	if cmd.Bool("no-limits") {
+		fmt.Fprintln(cmd.ErrWriter, "warning: --no-limits disables join and split safety caps; large jobs may exhaust memory or disk space")
+	}
 
 	for _, registered := range codec.All() {
 		if processor, ok := registered.(codec.Configurator); ok {

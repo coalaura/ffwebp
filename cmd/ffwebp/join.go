@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -143,7 +144,10 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 }
 
 func parseJoinOptions(cmd *cli.Command, inputCount int) (resize.JoinOptions, error) {
-	options := resize.JoinOptions{Mode: cmd.String("join-mode")}
+	options := resize.JoinOptions{
+		Mode:     cmd.String("join-mode"),
+		NoLimits: cmd.Bool("no-limits"),
+	}
 
 	columns, rows, err := parseJoinDimensions(cmd.String("join"), true)
 	if err != nil {
@@ -160,8 +164,12 @@ func parseJoinOptions(cmd *cli.Command, inputCount int) (resize.JoinOptions, err
 		rows = (inputCount-1)/columns + 1
 	}
 
-	if columns > resize.MaxJoinCells/rows {
-		return options, fmt.Errorf("--join supports at most %d cells", resize.MaxJoinCells)
+	if !options.NoLimits && columns > resize.MaxJoinCells/rows {
+		return options, fmt.Errorf("--join supports at most %d cells; use --no-limits to bypass safety caps", resize.MaxJoinCells)
+	}
+
+	if columns > math.MaxInt/rows {
+		return options, errors.New("join grid cell count overflows")
 	}
 
 	if inputCount > columns*rows {

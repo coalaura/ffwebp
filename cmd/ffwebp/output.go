@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -111,8 +112,14 @@ func planSplit(cmd *cli.Command, inputCount int) (int, int, error) {
 		return 0, 0, errors.New("--split cannot be used with --play")
 	}
 
+	limit := maxPlannedTiles
+
+	if cmd.Bool("no-limits") {
+		limit = math.MaxInt
+	}
+
 	// Divide before multiplying, including the aggregate across all inputs.
-	if splitX > maxPlannedTiles/splitY || splitX*splitY > maxPlannedTiles/inputCount {
+	if splitX > limit/splitY || splitX*splitY > limit/inputCount {
 		// The rejected count can exceed even uint64; compute it exactly only here.
 		var (
 			requested big.Int
@@ -123,13 +130,17 @@ func planSplit(cmd *cli.Command, inputCount int) (int, int, error) {
 		requested.Mul(&requested, factor.SetInt64(int64(splitY)))
 		requested.Mul(&requested, factor.SetInt64(int64(inputCount)))
 
-		return 0, 0, fmt.Errorf("split requests %s tiles; supported limit is %d tiles per invocation", requested.String(), maxPlannedTiles)
+		if cmd.Bool("no-limits") {
+			return 0, 0, fmt.Errorf("split requests %s tiles; tile count exceeds the maximum integer", requested.String())
+		}
+
+		return 0, 0, fmt.Errorf("split requests %s tiles; supported limit is %d tiles per invocation; use --no-limits to bypass safety caps", requested.String(), maxPlannedTiles)
 	}
 
 	return splitX, splitY, nil
 }
 
-// splitX and splitY have already passed the invocation-wide planning limit.
+// splitX and splitY have already passed the invocation-wide count checks.
 func resolveOutput(input, output string, directory bool, cmd *cli.Command, splitX, splitY, inputIndex int) (outputPlan, error) {
 	plan := outputPlan{path: output}
 	split := splitX > 0

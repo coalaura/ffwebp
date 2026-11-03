@@ -6,12 +6,13 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"strconv"
 
 	"golang.org/x/image/draw"
 	"golang.org/x/image/math/f64"
 )
 
-// Bound grid bookkeeping and the 8-byte-per-pixel composition canvas.
+// Bound grid bookkeeping and the 8-byte-per-pixel composition canvas by default.
 const (
 	MaxJoinCells  = 10_000
 	MaxJoinPixels = 32_000_000
@@ -26,6 +27,7 @@ type JoinOptions struct {
 	AlignX     int
 	AlignY     int
 	Background color.NRGBA
+	NoLimits   bool
 }
 
 func Join(images []image.Image, options JoinOptions) (image.Image, error) {
@@ -44,8 +46,13 @@ func Join(images []image.Image, options JoinOptions) (image.Image, error) {
 		return nil, err
 	}
 
-	if width > MaxJoinPixels/height {
-		return nil, fmt.Errorf("join canvas %dx%d exceeds the %d pixel limit; use smaller --join-cell dimensions", width, height, MaxJoinPixels)
+	if !options.NoLimits && width > MaxJoinPixels/height {
+		return nil, fmt.Errorf("join canvas %dx%d exceeds the %d pixel limit; use smaller --join-cell dimensions or --no-limits to bypass safety caps", width, height, MaxJoinPixels)
+	}
+
+	// NRGBA64 needs 8 bytes per pixel, even when the pixel limit is disabled.
+	if width > math.MaxInt/8/height {
+		return nil, fmt.Errorf("join canvas %dx%d exceeds the addressable image buffer size", width, height)
 	}
 
 	// Preserve 16-bit sources as well as alpha when placing unscaled images.
@@ -90,8 +97,20 @@ func Join(images []image.Image, options JoinOptions) (image.Image, error) {
 }
 
 func joinDimensions(images []image.Image, options JoinOptions) ([]int, []int, error) {
-	if options.Columns <= 0 || options.Rows <= 0 || options.Columns > MaxJoinCells/options.Rows {
-		return nil, nil, fmt.Errorf("join grid must contain between 1 and %d cells", MaxJoinCells)
+	if options.Columns <= 0 || options.Rows <= 0 {
+		return nil, nil, errors.New("join grid columns and rows must be positive")
+	}
+
+	if !options.NoLimits && options.Columns > MaxJoinCells/options.Rows {
+		return nil, nil, fmt.Errorf("join grid must contain at most %d cells; use --no-limits to bypass safety caps", MaxJoinCells)
+	}
+
+	if options.Columns > math.MaxInt/options.Rows {
+		return nil, nil, errors.New("join grid cell count overflows")
+	}
+
+	if options.Columns > math.MaxInt/(strconv.IntSize/8) || options.Rows > math.MaxInt/(strconv.IntSize/8) {
+		return nil, nil, errors.New("join grid dimensions exceed the addressable buffer size")
 	}
 
 	if len(images) == 0 || len(images) > options.Columns*options.Rows {
@@ -164,8 +183,8 @@ func joinExtent(sizes []int) (int, error) {
 	total := 0
 
 	for _, size := range sizes {
-		if size > MaxJoinPixels-total {
-			return 0, fmt.Errorf("join canvas exceeds the %d pixel limit; use smaller --join-cell dimensions", MaxJoinPixels)
+		if size > math.MaxInt-total {
+			return 0, errors.New("join canvas dimensions overflow")
 		}
 
 		total += size
