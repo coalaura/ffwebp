@@ -390,6 +390,8 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 	}
 
 	if anim != nil {
+		localOpts.ICC = anim.ICC
+
 		if cmd.Int("frame") >= 0 || cmd.IsSet("time") {
 			img, err = selectAnimationFrame(anim, cmd, logger)
 			if err != nil {
@@ -403,7 +405,14 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 			} else {
 				logx.Fprintf(logger, "output codec doesn't support animation, using first frame of %d\n", len(anim.Frames))
 			}
-		} else if len(anim.Frames) > 1 {
+		} else if anim.Animated || len(anim.Frames) > 1 {
+			if doPlay || oCodec.String() != "jpegxl" {
+				anim.Delays, err = anim.MillisecondDelays()
+				if err != nil {
+					return err
+				}
+			}
+
 			first := anim.Frames[0]
 
 			logx.Fprintf(logger, "decoded animation: %d frames %dx%d %s in %s\n", len(anim.Frames), first.Bounds().Dx(), first.Bounds().Dy(), colorModel(first), time.Since(t0).Truncate(time.Millisecond))
@@ -450,6 +459,11 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 			t2 := time.Now()
 
+			err = validateOutputICC(oCodec, localOpts)
+			if err != nil {
+				return err
+			}
+
 			written, err := writeOutput(output, cmd.Bool("skip-existing"), logger, func(writer io.Writer) error {
 				return animEncoder.EncodeAll(writer, anim, localOpts)
 			})
@@ -470,12 +484,17 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	logx.Fprintf(logger, "decoded image: %dx%d %s in %s\n", img.Bounds().Dx(), img.Bounds().Dy(), colorModel(img), time.Since(t0).Truncate(time.Millisecond))
 
-	return processImage(img, plan, cmd, common, logger)
+	return processImage(img, plan, cmd, &localOpts, logger)
 }
 
 func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *opts.Common, logger io.Writer) error {
 	localOpts := *common
 	localOpts.OutputExtension = plan.extension
+
+	if profiled, ok := img.(*codec.ProfiledImage); ok {
+		localOpts.ICC = profiled.ICC
+		img = profiled.Image
+	}
 
 	thumbnail := cmd.Uint("thumbnail")
 	if thumbnail > 0 {
@@ -504,6 +523,11 @@ func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *o
 		logx.Fprintf(logger, "playing image...\n")
 
 		return play.PlayImage(img)
+	}
+
+	err = validateOutputICC(plan.codec, localOpts)
+	if err != nil {
+		return err
 	}
 
 	t2 := time.Now()

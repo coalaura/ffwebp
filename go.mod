@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/anthonynsimon/bild v0.17.1
 	github.com/coalaura/dds v0.2.0
-	github.com/coalaura/jpeg v0.1.0
+	github.com/coalaura/jpeg v0.1.1
 	github.com/coalaura/webp v1.6.6
 	github.com/coalaura/xbm v0.0.4
 	github.com/coalaura/xpm v0.0.3

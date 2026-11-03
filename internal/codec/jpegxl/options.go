@@ -105,6 +105,11 @@ func encodeOptions(common opts.Common) (jxl.Options, error) {
 		IntensityTarget: float32(command.Float64("jpegxl.intensity-target")),
 		CodestreamLevel: command.Int("jpegxl.codestream-level"),
 		MaxMemoryBytes:  command.Uint64("jpegxl.max-memory-bytes"),
+		ICC:             common.ICC,
+	}
+
+	if command.IsSet("jpegxl.linear") {
+		settings.ICC = nil
 	}
 
 	if command.IsSet("jpegxl.distance") {

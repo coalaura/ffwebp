@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/logx"
 	"github.com/coalaura/ffwebp/internal/opts"
 	"github.com/coalaura/ffwebp/internal/resize"
@@ -81,6 +83,7 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 	}
 
 	images := make([]image.Image, len(inputs))
+	localOpts := *common
 
 	for index, input := range inputs {
 		logx.Printf("join input %d: %q -> row=%d column=%d (zero-based)\n", index+1, filepath.ToSlash(input), index/options.Columns, index%options.Columns)
@@ -97,6 +100,19 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 			}
 		}
 
+		var profile []byte
+
+		if profiled, ok := img.(*codec.ProfiledImage); ok {
+			profile = profiled.ICC
+			img = profiled.Image
+		}
+
+		if index == 0 {
+			localOpts.ICC = profile
+		} else if !bytes.Equal(localOpts.ICC, profile) {
+			return fmt.Errorf("join input %q has a different ICC color space; convert all inputs to the same profile and pixel color space before joining", input)
+		}
+
 		images[index] = img
 	}
 
@@ -107,7 +123,7 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 
 	logx.Printf("joined canvas: %dx%d\n", joined.Bounds().Dx(), joined.Bounds().Dy())
 
-	return processImage(joined, &plan, cmd, common, nil)
+	return processImage(joined, &plan, cmd, &localOpts, nil)
 }
 
 func parseJoinOptions(cmd *cli.Command, inputCount int) (resize.JoinOptions, error) {

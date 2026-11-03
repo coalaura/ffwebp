@@ -242,6 +242,9 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		}
 
 		delays[i] = (delay + 5) / 10
+		if delay > 0 && delays[i] == 0 {
+			return fmt.Errorf("gif: visible frame %d cannot be represented in centiseconds; use JPEG XL output to preserve native timing", i)
+		}
 	}
 
 	backgroundIndex := uint8(0)

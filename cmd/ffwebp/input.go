@@ -112,25 +112,11 @@ func selectAnimationFrame(animation *codec.Animation, cmd *cli.Command, logger i
 		index = 0
 
 		if cmd.IsSet("time") {
-			target := cmd.Duration("time").Milliseconds()
-			elapsed := int64(0)
-
-			for frame, delay := range animation.Delays {
-				if frame >= len(animation.Frames) {
-					break
-				}
-
-				index = frame
-				elapsed += int64(delay)
-
-				if elapsed > target {
-					break
-				}
-			}
+			index = animation.FrameAt(cmd.Duration("time"))
 		}
 	}
 
 	logx.Fprintf(logger, "selected frame %d from %d frame animation\n", index, len(animation.Frames))
 
-	return animation.Frames[index], nil
+	return &codec.ProfiledImage{Image: animation.Frames[index], ICC: animation.ICC}, nil
 }

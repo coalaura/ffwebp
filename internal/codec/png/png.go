@@ -18,6 +18,10 @@ type impl struct{}
 
 var compression int
 
+func init() {
+	codec.Register(impl{})
+}
+
 func (impl) String() string {
 	return "png"
 }
@@ -97,11 +101,17 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 	}, nil
 }
 
-func (impl) Encode(writer io.Writer, img image.Image, _ opts.Common) error {
+func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error {
+	err := codec.ValidateICC(img, common.ICC)
+	if err != nil {
+		return err
+	}
+
 	logx.Printf("png: compression=%d\n", compression)
 
 	settings := pngn.EncodeOptions{
 		CompressionLevel: compressionLevel(compression),
+		Metadata:         profileMetadata(common.ICC),
 	}
 
 	return pngn.Encode(writer, img, &settings)
@@ -116,9 +126,14 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 		if frame == nil {
 			return fmt.Errorf("png: frame %d is nil", index)
 		}
+
+		err := codec.ValidateICC(frame, options.ICC)
+		if err != nil {
+			return err
+		}
 	}
 
-	if len(animation.Frames) == 1 {
+	if len(animation.Frames) == 1 && !animation.Animated {
 		return adapter.Encode(writer, animation.Frames[0], options)
 	}
 
@@ -148,6 +163,7 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 
 	settings := pngn.EncodeOptions{
 		CompressionLevel: compressionLevel(compression),
+		Metadata:         profileMetadata(options.ICC),
 	}
 
 	output := pngn.PNG{
@@ -161,8 +177,12 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 	return pngn.EncodeAll(writer, &output, &settings)
 }
 
-func init() {
-	codec.Register(impl{})
+func profileMetadata(profile []byte) *pngn.Metadata {
+	if len(profile) == 0 {
+		return nil
+	}
+
+	return &pngn.Metadata{ICCProfile: &pngn.ICCProfile{Name: "ICC", Profile: profile}}
 }
 
 func compressionLevel(level int) pngn.CompressionLevel {

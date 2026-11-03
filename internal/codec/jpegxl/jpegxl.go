@@ -5,7 +5,6 @@ import (
 	"image"
 	"io"
 	"math"
-	"math/bits"
 
 	"github.com/coalaura/ffwebp/internal/codec"
 	"github.com/coalaura/ffwebp/internal/codec/jpegutil"
@@ -45,9 +44,13 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	return jpegutil.Sniff(reader, detect.JXLCodestream, detect.JXLContainer)
 }
 
-func (impl) Decode(reader io.Reader) (image.Image, error) {
-	settings := decodeOptions()
-	return jxl.DecodeWithOptions(reader, &settings)
+func (adapter impl) Decode(reader io.Reader) (image.Image, error) {
+	animation, err := adapter.DecodeAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return &codec.ProfiledImage{Image: animation.Frames[0], ICC: animation.ICC}, nil
 }
 
 func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
@@ -59,9 +62,16 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 	}
 
 	animation := &codec.Animation{
-		Frames:    make([]image.Image, len(native.Frames)),
-		Delays:    make([]int, len(native.Frames)),
-		LoopCount: int(native.LoopCount) - 1,
+		Frames:           make([]image.Image, len(native.Frames)),
+		LoopCount:        int(native.LoopCount) - 1,
+		Animated:         native.Animated,
+		TicksNumerator:   native.TicksNumerator,
+		TicksDenominator: native.TicksDenominator,
+		ICC:              native.OutputICC,
+	}
+
+	if native.Animated {
+		animation.Durations = make([]uint32, len(native.Frames))
 	}
 
 	switch native.LoopCount {
@@ -70,11 +80,6 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 	case 1:
 		animation.LoopCount = -1
 	}
-
-	// Carry the fractional boundary forward, rounding cumulative time rather
-	// than individual frames so rational frame rates do not accumulate drift.
-	remainder := uint64(native.TicksNumerator) / 2
-	total := 0
 
 	for index := range native.Frames {
 		frame := &native.Frames[index]
@@ -85,12 +90,7 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		}
 
 		if native.Animated {
-			animation.Delays[index], remainder, err = milliseconds(frame.Duration, native.TicksNumerator, native.TicksDenominator, remainder)
-			if err != nil || animation.Delays[index] > math.MaxInt-total {
-				return nil, fmt.Errorf("jpegxl: animation duration exceeds the millisecond timeline")
-			}
-
-			total += animation.Delays[index]
+			animation.Durations[index] = frame.Duration
 		}
 	}
 
@@ -108,6 +108,11 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 		return err
 	}
 
+	err = codec.ValidateICC(img, settings.ICC)
+	if err != nil {
+		return err
+	}
+
 	return jxl.Encode(writer, img, &settings)
 }
 
@@ -115,6 +120,10 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 	settings, err := encodeOptions(common)
 	if err != nil {
 		return err
+	}
+
+	if len(settings.ICC) == 0 && !command.IsSet("jpegxl.linear") {
+		settings.ICC = animation.ICC
 	}
 
 	if animation.LoopCount < -1 || int64(animation.LoopCount) >= math.MaxUint32 {
@@ -129,6 +138,15 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 		LoopCount:        uint32(animation.LoopCount + 1),
 	}
 
+	if len(animation.Durations) > 0 {
+		if len(animation.Durations) != len(animation.Frames) {
+			return fmt.Errorf("jpegxl: native durations must match the frame count")
+		}
+
+		native.TicksNumerator = animation.TicksNumerator
+		native.TicksDenominator = animation.TicksDenominator
+	}
+
 	switch animation.LoopCount {
 	case -1:
 		native.LoopCount = 1
@@ -140,6 +158,17 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 		err = validatePrecision(img, &settings)
 		if err != nil {
 			return err
+		}
+
+		err = codec.ValidateICC(img, settings.ICC)
+		if err != nil {
+			return err
+		}
+
+		if len(animation.Durations) > 0 {
+			native.Frames[index] = jxl.Frame{Image: img, Duration: animation.Durations[index]}
+
+			continue
 		}
 
 		delay := 0
@@ -156,27 +185,6 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 	}
 
 	return jxl.EncodeAnimation(writer, native, &settings)
-}
-
-func milliseconds(duration, numerator, denominator uint32, remainder uint64) (int, uint64, error) {
-	if numerator == 0 || denominator == 0 {
-		return 0, 0, fmt.Errorf("jpegxl: invalid animation time base")
-	}
-
-	high, low := bits.Mul64(uint64(duration)*uint64(denominator), 1000)
-	low, carry := bits.Add64(low, remainder, 0)
-
-	high += carry
-	if high >= uint64(numerator) {
-		return 0, 0, fmt.Errorf("jpegxl: frame duration overflows")
-	}
-
-	quotient, remainder := bits.Div64(high, low, uint64(numerator))
-	if quotient > math.MaxInt {
-		return 0, 0, fmt.Errorf("jpegxl: frame duration overflows")
-	}
-
-	return int(quotient), remainder, nil
 }
 
 func validatePrecision(img image.Image, settings *jxl.Options) error {

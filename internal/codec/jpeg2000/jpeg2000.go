@@ -101,12 +101,17 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 		settings.Region = new(image.Rect(values[0], values[1], values[2], values[3]))
 	}
 
-	img, err := jp2.DecodeWithOptions(reader, &settings)
+	native, err := jp2.DecodeNative(reader, &settings)
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := displayImage(native)
 	if err != nil {
 		return nil, fmt.Errorf("%w; raw J2K needs --jpeg2000.raw-color rgb|gray (and --jpeg2000.raw-alpha for alpha); signed, YCC, CMYK or mismatched component grids require external display conversion", err)
 	}
 
-	return img, nil
+	return &codec.ProfiledImage{Image: img, ICC: native.ICC}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error {
@@ -123,9 +128,14 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 		SOP:                     command.Bool("jpeg2000.sop"),
 		EPH:                     command.Bool("jpeg2000.eph"),
 		Threads:                 command.Int("jpeg2000.threads"),
+		ICC:                     common.ICC,
 	}
 
 	if common.OutputExtension == "j2k" || common.OutputExtension == "j2c" {
+		if len(settings.ICC) > 0 {
+			return fmt.Errorf("jpeg2000: raw J2K cannot carry an ICC profile; use JP2 output or convert the profile and pixels to sRGB first")
+		}
+
 		settings.Format = jp2.J2K
 	}
 
@@ -151,6 +161,11 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 
 	if common.Lossless && (settings.Irreversible || lossyRatio || lossyPSNR || precisionLoss) {
 		return fmt.Errorf("jpeg2000: --lossless requires reversible wavelets, a lossless final layer and source precision")
+	}
+
+	err = codec.ValidateICC(img, settings.ICC)
+	if err != nil {
+		return err
 	}
 
 	return jp2.Encode(writer, img, &settings)
