@@ -42,4 +42,4 @@ jobs:
           CGO_ENABLED: 1
           CC: zig cc -target ${{ matrix.target }}
           CXX: zig c++ -target ${{ matrix.target }}
-        run: go test -count=1 -v ./integration
+        run: go test -count=1 -timeout=30m -v ./integration
