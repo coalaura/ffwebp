@@ -6,7 +6,6 @@ import (
 	"image"
 	"image/draw"
 	"io"
-	"math"
 
 	"github.com/gen2brain/avif"
 
@@ -113,18 +112,10 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		return nil, fmt.Errorf("avif: decoded animation has no frames")
 	}
 
-	delays := make([]int, len(anim.Image))
-
-	for index := range delays {
-		if index < len(anim.Delay) {
-			delays[index] = int(math.Round(anim.Delay[index] * 1000))
-		}
-	}
-
 	return &codec.Animation{
-		Frames:    anim.Image,
-		Delays:    delays,
-		LoopCount: anim.LoopCount,
+		Frames:       anim.Image,
+		DelaySeconds: anim.Delay,
+		LoopCount:    anim.LoopCount,
 	}, nil
 }
 
@@ -145,6 +136,21 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		return fmt.Errorf("avif: single-play animations are not supported by the encoder")
 	}
 
+	if len(anim.Frames) == 1 {
+		return fmt.Errorf("avif: encoder cannot preserve a one-frame animation; use APNG or JPEG XL")
+	}
+
+	milliseconds, err := anim.MillisecondDelays()
+	if err != nil {
+		return err
+	}
+
+	for index, delay := range milliseconds {
+		if delay == 0 {
+			return fmt.Errorf("avif: encoder cannot preserve zero-duration frame %d; use APNG or GIF", index)
+		}
+	}
+
 	frames := make([]image.Image, len(anim.Frames))
 	delays := make([]float64, len(anim.Frames))
 
@@ -163,8 +169,8 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 
 		frames[index] = frame
 
-		if index < len(anim.Delays) {
-			delays[index] = float64(anim.Delays[index]) / 1000
+		if index < len(milliseconds) {
+			delays[index] = float64(milliseconds[index]) / 1000
 		}
 	}
 

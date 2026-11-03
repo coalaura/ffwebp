@@ -118,5 +118,5 @@ func selectAnimationFrame(animation *codec.Animation, cmd *cli.Command, logger i
 
 	logx.Fprintf(logger, "selected frame %d from %d frame animation\n", index, len(animation.Frames))
 
-	return &codec.ProfiledImage{Image: animation.Frames[index], ICC: animation.ICC}, nil
+	return &codec.ProfiledImage{Image: animation.Frames[index], ICC: animation.ICC, Channels: animation.Channels}, nil
 }

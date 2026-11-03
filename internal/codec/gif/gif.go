@@ -8,6 +8,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"io"
+	"math"
 	"math/rand/v2"
 
 	"github.com/coalaura/ffwebp/internal/codec"
@@ -170,6 +171,7 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		Delays:     delays,
 		LoopCount:  g.LoopCount,
 		Background: initialBackground,
+		Animated:   len(frames) > 1 || g.LoopCount != -1 || delays[0] > 0,
 	}, nil
 }
 
@@ -203,6 +205,25 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 		return fmt.Errorf("gif: animation has no frames")
 	}
 
+	if anim.LoopCount < -1 || anim.LoopCount > math.MaxUint16 {
+		return fmt.Errorf("gif: loop count is outside the unsigned 16-bit range")
+	}
+
+	if len(anim.Frames) == 1 && anim.LoopCount != -1 {
+		return fmt.Errorf("gif: encoder cannot preserve looping for a one-frame animation; use APNG or JPEG XL")
+	}
+
+	delays, err := anim.DelaysIn(100)
+	if err != nil {
+		return fmt.Errorf("gif: %w", err)
+	}
+
+	for index, delay := range delays {
+		if delay > math.MaxUint16 {
+			return fmt.Errorf("gif: frame %d delay exceeds the unsigned 16-bit field (65535 centiseconds); use APNG or JPEG XL", index)
+		}
+	}
+
 	pal, err := makePalette(anim.Frames)
 	if err != nil {
 		return err
@@ -222,29 +243,6 @@ func (impl) EncodeAll(writer io.Writer, anim *codec.Animation, options opts.Comm
 
 		// Frames are complete composites. Clear each one so disappearing pixels cannot trail.
 		disposal[i] = gif.DisposalBackground
-	}
-
-	delays := make([]int, len(anim.Delays))
-
-	copy(delays, anim.Delays)
-
-	if len(delays) != len(framesOut) {
-		fixed := make([]int, len(framesOut))
-
-		copy(fixed, delays)
-
-		delays = fixed
-	}
-
-	for i, delay := range delays {
-		if delay < 0 {
-			delay = 0
-		}
-
-		delays[i] = (delay + 5) / 10
-		if delay > 0 && delays[i] == 0 {
-			return fmt.Errorf("gif: visible frame %d cannot be represented in centiseconds; use JPEG XL output to preserve native timing", i)
-		}
 	}
 
 	backgroundIndex := uint8(0)

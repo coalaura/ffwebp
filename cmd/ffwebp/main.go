@@ -391,6 +391,11 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 	if anim != nil {
 		localOpts.ICC = anim.ICC
+		localOpts.Channels = anim.Channels
+
+		if localOpts.Channels == 0 {
+			localOpts.Channels = codec.ImageChannels(anim.Frames[0])
+		}
 
 		if cmd.Int("frame") >= 0 || cmd.IsSet("time") {
 			img, err = selectAnimationFrame(anim, cmd, logger)
@@ -406,7 +411,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 				logx.Fprintf(logger, "output codec doesn't support animation, using first frame of %d\n", len(anim.Frames))
 			}
 		} else if anim.Animated || len(anim.Frames) > 1 {
-			if doPlay || oCodec.String() != "jpegxl" {
+			if doPlay {
 				anim.Delays, err = anim.MillisecondDelays()
 				if err != nil {
 					return err
@@ -435,13 +440,15 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 			var n int
 
 			for i, frame := range anim.Frames {
-				frame, n, err = effects.ApplyAll(frame)
+				frame, n, err = applyEffects(frame, &localOpts)
 				if err != nil {
 					return err
 				}
 
 				anim.Frames[i] = frame
 			}
+
+			normalizeColorFrames(anim.Frames, localOpts.Channels)
 
 			bounds := anim.Frames[0].Bounds()
 
@@ -459,7 +466,7 @@ func processOne(input string, plan *outputPlan, cmd *cli.Command, common *opts.C
 
 			t2 := time.Now()
 
-			err = validateOutputICC(oCodec, localOpts)
+			err = validateOutputICC(oCodec, &localOpts)
 			if err != nil {
 				return err
 			}
@@ -493,7 +500,12 @@ func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *o
 
 	if profiled, ok := img.(*codec.ProfiledImage); ok {
 		localOpts.ICC = profiled.ICC
+		localOpts.Channels = profiled.Channels
 		img = profiled.Image
+	}
+
+	if localOpts.Channels == 0 {
+		localOpts.Channels = codec.ImageChannels(img)
 	}
 
 	thumbnail := cmd.Uint("thumbnail")
@@ -512,7 +524,7 @@ func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *o
 		err error
 	)
 
-	img, n, err = effects.ApplyAll(img)
+	img, n, err = applyEffects(img, &localOpts)
 	if err != nil {
 		return err
 	} else if n > 0 {
@@ -525,7 +537,7 @@ func processImage(img image.Image, plan *outputPlan, cmd *cli.Command, common *o
 		return play.PlayImage(img)
 	}
 
-	err = validateOutputICC(plan.codec, localOpts)
+	err = validateOutputICC(plan.codec, &localOpts)
 	if err != nil {
 		return err
 	}

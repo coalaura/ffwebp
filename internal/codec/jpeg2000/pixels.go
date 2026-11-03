@@ -5,8 +5,52 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/codec/jpegutil"
 	jp2 "github.com/coalaura/jpeg/jpeg2000"
 )
+
+func grayAlphaImage(img image.Image, settings *jp2.Options) *jp2.NativeImage {
+	bounds := img.Bounds()
+
+	precision := settings.BitsPerSample
+	if precision == 0 {
+		precision = jpegutil.Precision(img)
+	}
+
+	native := &jp2.NativeImage{
+		Bounds:     image.Rect(0, 0, bounds.Dx(), bounds.Dy()),
+		ColorSpace: jp2.Gray,
+		Components: make([]jp2.Component, 2),
+		ICC:        settings.ICC,
+	}
+	maximum := uint32(1<<precision) - 1
+
+	for index := range native.Components {
+		native.Components[index] = jp2.Component{
+			Width:         bounds.Dx(),
+			Height:        bounds.Dy(),
+			DX:            1,
+			DY:            1,
+			BitsPerSample: precision,
+			Alpha:         index,
+			Values:        make([]int32, bounds.Dx()*bounds.Dy()),
+		}
+	}
+
+	index := 0
+
+	for row := bounds.Min.Y; row < bounds.Max.Y; row++ {
+		for column := bounds.Min.X; column < bounds.Max.X; column++ {
+			pixel := codec.NRGBA64At(img, column, row)
+			native.Components[0].Values[index] = int32((uint32(pixel.R)*maximum + 32767) / 65535)
+			native.Components[1].Values[index] = int32((uint32(pixel.A)*maximum + 32767) / 65535)
+			index++
+		}
+	}
+
+	return native
+}
 
 func displayImage(native *jp2.NativeImage) (image.Image, error) {
 	if len(native.Components) == 0 || native.ColorSpace != jp2.SRGB && native.ColorSpace != jp2.ICCRGB && native.ColorSpace != jp2.Gray {

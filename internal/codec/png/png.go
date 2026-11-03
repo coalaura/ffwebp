@@ -67,21 +67,62 @@ func (impl) Sniff(reader io.ReaderAt) (int, []byte, error) {
 	return 0, nil, nil
 }
 
-func (impl) Decode(reader io.Reader) (image.Image, error) {
-	return pngn.Decode(reader)
-}
-
-func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
-	animation, err := pngn.DecodeAll(reader)
+func (adapter impl) Decode(reader io.Reader) (image.Image, error) {
+	animation, err := adapter.DecodeAll(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	delays := make([]int, len(animation.Image))
+	return &codec.ProfiledImage{Image: animation.Frames[0], ICC: animation.ICC, Channels: animation.Channels}, nil
+}
 
-	for index, seconds := range animation.Delay {
-		// ffwebp uses milliseconds: round to nearest, with half milliseconds rounded up.
-		delays[index] = int(math.Round(seconds * 1000))
+func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
+	var prefix bytes.Buffer
+
+	animated, err := pngn.Animated(io.TeeReader(reader, &prefix))
+	if err != nil {
+		return nil, err
+	}
+
+	// Replay the consumed header even for stdin; collect metadata with the sole pixel decode.
+	metadata := new(pngn.Metadata)
+
+	animation, err := pngn.DecodeAll(io.MultiReader(bytes.NewReader(prefix.Bytes()), reader), &pngn.Options{Metadata: metadata})
+	if err != nil {
+		return nil, err
+	}
+
+	channels := 4
+
+	header := prefix.Bytes()
+	if len(header) > 25 {
+		switch header[25] {
+		case 0:
+			channels = 1
+		case 4:
+			channels = 2
+		}
+	}
+
+	var profile []byte
+
+	if metadata.ICCProfile != nil {
+		profile = metadata.ICCProfile.Profile
+	}
+
+	if channels == 1 {
+		for index, frame := range animation.Image {
+			if opaque, ok := frame.(interface{ Opaque() bool }); ok && !opaque.Opaque() {
+				channels = 2
+
+				break
+			}
+
+			animation.Image[index], err = codec.GrayImage(frame, false)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	loops := animation.LoopCount
@@ -95,14 +136,17 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 
 	// DecodeAll already composites/disposes frames and excludes a separate default PNG image.
 	return &codec.Animation{
-		Frames:    animation.Image,
-		Delays:    delays,
-		LoopCount: loops,
+		Frames:       animation.Image,
+		DelaySeconds: animation.Delay,
+		LoopCount:    loops,
+		Animated:     animated,
+		ICC:          profile,
+		Channels:     channels,
 	}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error {
-	err := codec.ValidateICC(img, common.ICC)
+	err := codec.ValidateICC(codec.ImageChannels(img), common.ICC)
 	if err != nil {
 		return err
 	}
@@ -127,7 +171,7 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 			return fmt.Errorf("png: frame %d is nil", index)
 		}
 
-		err := codec.ValidateICC(frame, options.ICC)
+		err := codec.ValidateICC(codec.ImageChannels(frame), options.ICC)
 		if err != nil {
 			return err
 		}
@@ -135,6 +179,11 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 
 	if len(animation.Frames) == 1 && !animation.Animated {
 		return adapter.Encode(writer, animation.Frames[0], options)
+	}
+
+	delays, err := animationDelays(animation)
+	if err != nil {
+		return err
 	}
 
 	loops := animation.LoopCount
@@ -146,19 +195,6 @@ func (adapter impl) EncodeAll(writer io.Writer, animation *codec.Animation, opti
 		loops = 1
 	} else if loops > 0 {
 		loops++
-	}
-
-	delays := make([]float64, len(animation.Frames))
-
-	for index := range delays {
-		if index < len(animation.Delays) {
-			seconds, err := delaySeconds(animation.Delays[index])
-			if err != nil {
-				return fmt.Errorf("png: frame %d: %w", index, err)
-			}
-
-			delays[index] = seconds
-		}
 	}
 
 	settings := pngn.EncodeOptions{
@@ -200,26 +236,49 @@ func compressionLevel(level int) pngn.CompressionLevel {
 	}
 }
 
-func delaySeconds(milliseconds int) (float64, error) {
-	if milliseconds < 0 {
-		return 0, fmt.Errorf("negative delay %dms", milliseconds)
+func animationDelays(animation *codec.Animation) ([]float64, error) {
+	delays := make([]float64, len(animation.Frames))
+	exact := true
+
+	for index := range delays {
+		delays[index] = animation.SecondsAt(index)
+		exact = representableDelay(delays[index]) && exact
 	}
 
-	seconds := float64(milliseconds) / 1000
-
-	if milliseconds <= math.MaxUint16 {
-		return seconds, nil
+	if exact {
+		return delays, nil
 	}
 
-	// pngn v0.1.3 tries these denominators, then clamps to 65535ms. Reject that lossy fallback.
+	// Quantize cumulative boundaries only when the encoder cannot retain the source fractions.
+	milliseconds, err := animation.MillisecondDelays()
+	if err != nil {
+		return nil, err
+	}
+
+	for index, delay := range milliseconds {
+		delays[index] = float64(delay) / 1000
+		if !representableDelay(delays[index]) {
+			return nil, fmt.Errorf("png: frame %d delay cannot be represented by the PNG encoder", index)
+		}
+	}
+
+	return delays, nil
+}
+
+func representableDelay(seconds float64) bool {
+	if seconds < 0 || math.IsNaN(seconds) || math.IsInf(seconds, 0) {
+		return false
+	}
+
+	// pngn v0.1.3 tries these denominators, then rounds/clamps to 65535ms.
 	denominators := [...]float64{1000, 100, 60, 30, 25, 24, 10, 1}
 
 	for _, denominator := range denominators {
 		numerator := seconds * denominator
 		if numerator <= math.MaxUint16 && numerator == math.Trunc(numerator) {
-			return seconds, nil
+			return true
 		}
 	}
 
-	return 0, fmt.Errorf("delay %dms cannot be represented by the PNG encoder", milliseconds)
+	return false
 }

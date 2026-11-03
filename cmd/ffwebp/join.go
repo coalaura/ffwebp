@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"image"
@@ -102,14 +101,30 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 
 		var profile []byte
 
+		channels := codec.ImageChannels(img)
+
 		if profiled, ok := img.(*codec.ProfiledImage); ok {
 			profile = profiled.ICC
+			channels = profiled.Channels
 			img = profiled.Image
+		}
+
+		if channels == 0 {
+			channels = codec.ImageChannels(img)
+		}
+
+		// Join draws an RGB canvas, including the user-specified background.
+		if channels <= 2 && len(profile) > 0 {
+			if !codec.StandardSRGB(profile) {
+				return fmt.Errorf("join input %q has a GRAY ICC profile; convert the profile and pixels to sRGB before joining", input)
+			}
+
+			profile = nil
 		}
 
 		if index == 0 {
 			localOpts.ICC = profile
-		} else if !bytes.Equal(localOpts.ICC, profile) {
+		} else if !codec.EquivalentICC(localOpts.ICC, profile) {
 			return fmt.Errorf("join input %q has a different ICC color space; convert all inputs to the same profile and pixel color space before joining", input)
 		}
 
@@ -122,6 +137,7 @@ func processJoin(inputs []string, output string, cmd *cli.Command, common *opts.
 	}
 
 	logx.Printf("joined canvas: %dx%d\n", joined.Bounds().Dx(), joined.Bounds().Dy())
+	localOpts.Channels = 4
 
 	return processImage(joined, &plan, cmd, &localOpts, nil)
 }

@@ -50,7 +50,7 @@ func (adapter impl) Decode(reader io.Reader) (image.Image, error) {
 		return nil, err
 	}
 
-	return &codec.ProfiledImage{Image: animation.Frames[0], ICC: animation.ICC}, nil
+	return &codec.ProfiledImage{Image: animation.Frames[0], ICC: animation.ICC, Channels: animation.Channels}, nil
 }
 
 func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
@@ -68,6 +68,7 @@ func (impl) DecodeAll(reader io.Reader) (*codec.Animation, error) {
 		TicksNumerator:   native.TicksNumerator,
 		TicksDenominator: native.TicksDenominator,
 		ICC:              native.OutputICC,
+		Channels:         native.Frames[0].Samples.Channels,
 	}
 
 	if native.Animated {
@@ -108,9 +109,13 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 		return err
 	}
 
-	err = codec.ValidateICC(img, settings.ICC)
+	err = codec.ValidateICC(common.Channels, settings.ICC)
 	if err != nil {
 		return err
+	}
+
+	if common.Channels == 2 {
+		return jxl.EncodeSamples(writer, grayAlphaSamples(img), &settings)
 	}
 
 	return jxl.Encode(writer, img, &settings)
@@ -120,10 +125,6 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 	settings, err := encodeOptions(common)
 	if err != nil {
 		return err
-	}
-
-	if len(settings.ICC) == 0 && !command.IsSet("jpegxl.linear") {
-		settings.ICC = animation.ICC
 	}
 
 	if animation.LoopCount < -1 || int64(animation.LoopCount) >= math.MaxUint32 {
@@ -138,6 +139,8 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 		LoopCount:        uint32(animation.LoopCount + 1),
 	}
 
+	delays := animation.Delays
+
 	if len(animation.Durations) > 0 {
 		if len(animation.Durations) != len(animation.Frames) {
 			return fmt.Errorf("jpegxl: native durations must match the frame count")
@@ -145,6 +148,11 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 
 		native.TicksNumerator = animation.TicksNumerator
 		native.TicksDenominator = animation.TicksDenominator
+	} else {
+		delays, err = animation.MillisecondDelays()
+		if err != nil {
+			return err
+		}
 	}
 
 	switch animation.LoopCount {
@@ -160,28 +168,35 @@ func (impl) EncodeAll(writer io.Writer, animation *codec.Animation, common opts.
 			return err
 		}
 
-		err = codec.ValidateICC(img, settings.ICC)
+		err = codec.ValidateICC(common.Channels, settings.ICC)
 		if err != nil {
 			return err
 		}
 
-		if len(animation.Durations) > 0 {
-			native.Frames[index] = jxl.Frame{Image: img, Duration: animation.Durations[index]}
-
-			continue
-		}
-
 		delay := 0
 
-		if index < len(animation.Delays) {
-			delay = animation.Delays[index]
+		if index < len(delays) {
+			delay = delays[index]
+		}
+
+		if len(animation.Durations) > 0 {
+			delay = int(animation.Durations[index])
 		}
 
 		if delay < 0 || int64(delay) > math.MaxUint32 {
 			return fmt.Errorf("jpegxl: frame %d delay is outside the supported range", index)
 		}
 
+		if delay == 0 {
+			return fmt.Errorf("jpegxl: zero-duration frame %d would become a compositing layer; use APNG or GIF to preserve frames", index)
+		}
+
 		native.Frames[index] = jxl.Frame{Image: img, Duration: uint32(delay)}
+
+		if common.Channels == 2 {
+			native.Frames[index].Image = nil
+			native.Frames[index].Samples = grayAlphaSamples(img)
+		}
 	}
 
 	return jxl.EncodeAnimation(writer, native, &settings)

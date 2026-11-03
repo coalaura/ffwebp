@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	"io"
 	"math"
 	"math/bits"
@@ -14,11 +13,12 @@ import (
 	"github.com/coalaura/ffwebp/internal/resize"
 )
 
-// Animation retains native ticks when available; otherwise Delays are milliseconds.
+// Animation retains native ticks or seconds when available; Delays are milliseconds.
 // LoopCount follows GIF: 0 loops forever, -1 plays once, and positive values count repeats.
 type Animation struct {
 	Frames           []image.Image
 	Delays           []int
+	DelaySeconds     []float64
 	LoopCount        int
 	Background       color.RGBA
 	Animated         bool
@@ -26,6 +26,7 @@ type Animation struct {
 	TicksNumerator   uint32
 	TicksDenominator uint32
 	ICC              []byte
+	Channels         int
 }
 
 // AnimatedDecoder can decode all frames from an input.
@@ -39,6 +40,19 @@ type AnimatedEncoder interface {
 }
 
 func (animation *Animation) FrameAt(target time.Duration) int {
+	if len(animation.DelaySeconds) > 0 && len(animation.Durations) == 0 {
+		elapsed := float64(0)
+
+		for index, seconds := range animation.DelaySeconds {
+			elapsed += seconds
+			if elapsed > target.Seconds() {
+				return index
+			}
+		}
+
+		return len(animation.Frames) - 1
+	}
+
 	position := uint64(target.Milliseconds())
 
 	if len(animation.Durations) > 0 {
@@ -73,43 +87,124 @@ func (animation *Animation) FrameAt(target time.Duration) int {
 }
 
 func (animation *Animation) MillisecondDelays() ([]int, error) {
-	if len(animation.Durations) == 0 {
-		return animation.Delays, nil
+	return animation.DelaysIn(1000)
+}
+
+// DelaysIn quantizes cumulative boundaries once, directly in destination units.
+func (animation *Animation) DelaysIn(units uint64) ([]int, error) {
+	if len(animation.DelaySeconds) > 0 && len(animation.Durations) == 0 {
+		return animation.secondsDelaysIn(units)
 	}
 
-	numerator := uint64(animation.TicksNumerator)
-	if numerator == 0 || animation.TicksDenominator == 0 {
+	numerator := uint64(1000)
+	denominator := uint64(1)
+	native := len(animation.Durations) > 0
+
+	if native {
+		if len(animation.Durations) != len(animation.Frames) {
+			return nil, fmt.Errorf("native durations must match the frame count")
+		}
+
+		numerator = uint64(animation.TicksNumerator)
+		denominator = uint64(animation.TicksDenominator)
+	}
+
+	if numerator == 0 || denominator == 0 || units == 0 {
 		return nil, fmt.Errorf("invalid animation time base")
 	}
 
-	delays := make([]int, len(animation.Durations))
+	delays := make([]int, len(animation.Frames))
 
 	// Round cumulative boundaries, carrying the fractional part to avoid drift.
 	remainder := numerator / 2
 	total := 0
 
-	for index, duration := range animation.Durations {
-		high, low := bits.Mul64(uint64(duration)*uint64(animation.TicksDenominator), 1000)
+	for index := range delays {
+		duration := uint64(0)
+
+		if native {
+			duration = uint64(animation.Durations[index])
+		} else if index < len(animation.Delays) {
+			if animation.Delays[index] < 0 {
+				return nil, fmt.Errorf("frame %d has a negative delay", index)
+			}
+
+			duration = uint64(animation.Delays[index])
+		}
+
+		high, low := bits.Mul64(duration*denominator, units)
 		low, carry := bits.Add64(low, remainder, 0)
 
 		high += carry
 		if high >= numerator {
-			return nil, fmt.Errorf("frame %d duration exceeds the millisecond timeline", index)
+			return nil, fmt.Errorf("frame %d duration exceeds the destination timeline", index)
 		}
 
 		var delay uint64
 
 		delay, remainder = bits.Div64(high, low, numerator)
 		if delay > uint64(math.MaxInt-total) {
-			return nil, fmt.Errorf("animation duration exceeds the millisecond timeline")
+			return nil, fmt.Errorf("animation duration exceeds the destination timeline")
 		}
 
 		if duration > 0 && delay == 0 {
-			return nil, fmt.Errorf("visible frame %d cannot be represented in milliseconds; use JPEG XL output to preserve native timing", index)
+			return nil, fmt.Errorf("visible frame %d cannot be represented at %d timing units per second; use JPEG XL output to preserve native timing", index, units)
 		}
 
 		delays[index] = int(delay)
 		total += int(delay)
+	}
+
+	return delays, nil
+}
+
+func (animation *Animation) SecondsAt(index int) float64 {
+	if index < len(animation.Durations) {
+		return float64(animation.Durations[index]) * float64(animation.TicksDenominator) / float64(animation.TicksNumerator)
+	}
+
+	if index < len(animation.DelaySeconds) {
+		return animation.DelaySeconds[index]
+	}
+
+	if index < len(animation.Delays) {
+		return float64(animation.Delays[index]) / 1000
+	}
+
+	return 0
+}
+
+func (animation *Animation) secondsDelaysIn(units uint64) ([]int, error) {
+	if units == 0 || len(animation.DelaySeconds) != len(animation.Frames) {
+		return nil, fmt.Errorf("invalid animation timing")
+	}
+
+	delays := make([]int, len(animation.Frames))
+
+	var (
+		elapsed  float64
+		previous int
+	)
+
+	for index, seconds := range animation.DelaySeconds {
+		if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 {
+			return nil, fmt.Errorf("frame %d has an invalid delay", index)
+		}
+
+		elapsed += seconds
+
+		boundary := math.Round(elapsed * float64(units))
+		if boundary >= float64(math.MaxInt) {
+			return nil, fmt.Errorf("animation duration exceeds the destination timeline")
+		}
+
+		delay := int(boundary) - previous
+		if seconds > 0 && delay == 0 {
+			return nil, fmt.Errorf("visible frame %d cannot be represented at %d timing units per second", index, units)
+		}
+
+		delays[index] = delay
+		previous = int(boundary)
 	}
 
 	return delays, nil
@@ -128,13 +223,7 @@ func NormalizeAnimationFrames(frames []image.Image, width, height int) []image.I
 		if bounds.Dx() == width && bounds.Dy() == height && bounds.Min.X == 0 && bounds.Min.Y == 0 {
 			normalized[i] = frame
 		} else {
-			canvas := image.NewRGBA(image.Rect(0, 0, width, height))
-
-			resized := resize.Resize(width, height, frame)
-
-			draw.Draw(canvas, image.Rect(0, 0, width, height), resized, resized.Bounds().Min, draw.Over)
-
-			normalized[i] = canvas
+			normalized[i] = resize.Resize(width, height, frame)
 		}
 	}
 

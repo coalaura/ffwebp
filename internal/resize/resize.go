@@ -53,11 +53,7 @@ func Thumbnail(maxWidth, maxHeight uint, img image.Image) image.Image {
 		dstH = 1
 	}
 
-	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
-
-	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
-
-	return dst
+	return Resize(dstW, dstH, img)
 }
 
 func Resize(width, height int, img image.Image) image.Image {
@@ -87,9 +83,23 @@ func Resize(width, height int, img image.Image) image.Image {
 		dstH = 1
 	}
 
-	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+	rectangle := image.Rect(0, 0, dstW, dstH)
+	dst := newImage(rectangle, img)
 
-	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Src, nil)
 
 	return dst
+}
+
+func newImage(rectangle image.Rectangle, img image.Image) draw.Image {
+	switch img.(type) {
+	case *image.Gray:
+		return image.NewGray(rectangle)
+	case *image.Gray16:
+		return image.NewGray16(rectangle)
+	case *image.RGBA64, *image.NRGBA64:
+		return image.NewNRGBA64(rectangle)
+	default:
+		return image.NewNRGBA(rectangle)
+	}
 }

@@ -111,7 +111,7 @@ func (impl) Decode(reader io.Reader) (image.Image, error) {
 		return nil, fmt.Errorf("%w; raw J2K needs --jpeg2000.raw-color rgb|gray (and --jpeg2000.raw-alpha for alpha); signed, YCC, CMYK or mismatched component grids require external display conversion", err)
 	}
 
-	return &codec.ProfiledImage{Image: img, ICC: native.ICC}, nil
+	return &codec.ProfiledImage{Image: img, ICC: native.ICC, Channels: len(native.Components)}, nil
 }
 
 func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error {
@@ -163,9 +163,17 @@ func (impl) Encode(writer io.Writer, img image.Image, common opts.Common) error 
 		return fmt.Errorf("jpeg2000: --lossless requires reversible wavelets, a lossless final layer and source precision")
 	}
 
-	err = codec.ValidateICC(img, settings.ICC)
+	err = codec.ValidateICC(common.Channels, settings.ICC)
 	if err != nil {
 		return err
+	}
+
+	if common.Channels == 2 {
+		if settings.BitsPerSample != 0 && (settings.BitsPerSample < 2 || settings.BitsPerSample > 16) {
+			return fmt.Errorf("jpeg2000: precision must be between 2 and 16")
+		}
+
+		return jp2.EncodeNative(writer, grayAlphaImage(img, &settings), &settings)
 	}
 
 	return jp2.Encode(writer, img, &settings)

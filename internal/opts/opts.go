@@ -5,6 +5,7 @@ type Common struct {
 	Lossless        bool
 	OutputExtension string
 	ICC             []byte
+	Channels        int // Logical gray, gray-alpha, RGB or RGBA, independent of pixel storage.
 }
 
 func (c *Common) FillDefaults() {

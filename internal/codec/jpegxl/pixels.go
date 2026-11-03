@@ -5,8 +5,35 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/coalaura/ffwebp/internal/codec"
+	"github.com/coalaura/ffwebp/internal/codec/jpegutil"
 	jxl "github.com/coalaura/jpeg/jpegxl"
 )
+
+func grayAlphaSamples(img image.Image) *jxl.Samples {
+	bounds := img.Bounds()
+	precision := jpegutil.Precision(img)
+	samples := &jxl.Samples{
+		Width:         bounds.Dx(),
+		Height:        bounds.Dy(),
+		Channels:      2,
+		BitsPerSample: precision,
+		Unsigned:      make([]uint16, bounds.Dx()*bounds.Dy()*2),
+	}
+	shift := 16 - precision
+	index := 0
+
+	for row := bounds.Min.Y; row < bounds.Max.Y; row++ {
+		for column := bounds.Min.X; column < bounds.Max.X; column++ {
+			pixel := codec.NRGBA64At(img, column, row)
+			samples.Unsigned[index] = pixel.R >> shift
+			samples.Unsigned[index+1] = pixel.A >> shift
+			index += 2
+		}
+	}
+
+	return samples
+}
 
 func displayImage(samples *jxl.Samples) (image.Image, error) {
 	// DecodeAnimation has already validated samples against the caller's limits.

@@ -30,7 +30,7 @@ func Split(img image.Image, x, y int) ([]image.Image, error) {
 			x0 := b.Min.X + col*srcW/x
 			x1 := b.Min.X + (col+1)*srcW/x
 
-			dst := image.NewRGBA(image.Rect(0, 0, x1-x0, y1-y0))
+			dst := newImage(image.Rect(0, 0, x1-x0, y1-y0), img)
 
 			draw.Draw(dst, dst.Bounds(), img, image.Point{X: x0, Y: y0}, draw.Src)
 
