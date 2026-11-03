@@ -36,6 +36,9 @@ jobs:
 
       - name: Run integration tests
         env:
+          # Shorten Windows object paths to stay below the linker command-line limit.
+          TMP: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
           CGO_ENABLED: 1
           CC: zig cc -target ${{ matrix.target }}
           CXX: zig c++ -target ${{ matrix.target }}
