@@ -235,90 +235,103 @@ func compressionLevel(level int) pngn.CompressionLevel {
 }
 
 func animationDelays(animation *codec.Animation) ([]codec.FrameDelay, error) {
-	delays := make([]codec.FrameDelay, len(animation.Frames))
-	exact := true
+	count := len(animation.Frames)
+
+	switch {
+	case len(animation.Durations) > 0:
+		if len(animation.Durations) != count || animation.TicksNumerator == 0 || animation.TicksDenominator == 0 {
+			return nil, fmt.Errorf("png: invalid native animation timing")
+		}
+	case len(animation.DelayFractions) > 0:
+		if len(animation.DelayFractions) != count {
+			return nil, fmt.Errorf("png: invalid animation fractions")
+		}
+	case len(animation.DelaySeconds) > 0:
+		if len(animation.DelaySeconds) != count {
+			return nil, fmt.Errorf("png: invalid animation timing")
+		}
+	}
+
+	delays := make([]codec.FrameDelay, count)
+
+	var residual float64
 
 	for index := range delays {
-		var (
-			numerator   uint64
-			denominator uint64
-		)
+		seconds := animation.SecondsAt(index)
+		if math.IsNaN(seconds) || seconds < 0 || seconds > math.MaxUint16 {
+			return nil, fmt.Errorf("png: frame %d delay is outside APNG's range; use JPEG XL output", index)
+		}
 
-		switch {
-		case len(animation.Durations) > 0:
-			if len(animation.Durations) != len(delays) || animation.TicksNumerator == 0 || animation.TicksDenominator == 0 {
-				return nil, fmt.Errorf("png: invalid native animation timing")
-			}
+		delay := nearestPNGDelay(seconds)
+		if delay.Numerator == 0 && seconds > 0 {
+			return nil, fmt.Errorf("png: visible frame %d is too short for APNG timing; use JPEG XL output", index)
+		}
 
-			numerator = uint64(animation.Durations[index]) * uint64(animation.TicksDenominator)
-			denominator = uint64(animation.TicksNumerator)
-		case len(animation.DelayFractions) > 0:
-			if len(animation.DelayFractions) != len(delays) || animation.DelayFractions[index].Denominator == 0 {
-				return nil, fmt.Errorf("png: invalid animation fractions")
-			}
+		if delaySeconds(delay) != seconds {
+			// Only frames that need approximation absorb previous rounding error.
+			if residual != 0 {
+				adjusted := min(max(seconds+residual, 0), math.MaxUint16)
 
-			numerator = uint64(animation.DelayFractions[index].Numerator)
-			denominator = uint64(animation.DelayFractions[index].Denominator)
-		case len(animation.DelaySeconds) > 0:
-			exact = false
-
-			continue
-		default:
-			denominator = 1000
-
-			if index < len(animation.Delays) {
-				if animation.Delays[index] < 0 {
-					return nil, fmt.Errorf("png: frame %d has a negative delay", index)
+				corrected := nearestPNGDelay(adjusted)
+				if corrected.Numerator != 0 {
+					delay = corrected
 				}
-
-				numerator = uint64(animation.Delays[index])
 			}
+
+			residual += seconds - delaySeconds(delay)
 		}
 
-		fraction, ok := pngFraction(numerator, denominator)
-		delays[index] = fraction
-
-		exact = exact && ok
-	}
-
-	if exact {
-		return delays, nil
-	}
-
-	// Retain the existing cumulative millisecond fallback for unrepresentable fractions.
-	milliseconds, err := animation.MillisecondDelays()
-	if err != nil {
-		return nil, err
-	}
-
-	for index, delay := range milliseconds {
-		fraction, ok := pngFraction(uint64(delay), 1000)
-		if !ok {
-			return nil, fmt.Errorf("png: frame %d delay exceeds APNG's 16-bit fields; use JPEG XL output", index)
-		}
-
-		delays[index] = fraction
+		delays[index] = delay
 	}
 
 	return delays, nil
 }
 
-func pngFraction(numerator, denominator uint64) (codec.FrameDelay, bool) {
-	first := numerator
-	second := denominator
+func delaySeconds(delay codec.FrameDelay) float64 {
+	return float64(delay.Numerator) / float64(delay.Denominator)
+}
 
-	for second != 0 {
-		remainder := first % second
-		first = second
-		second = remainder
+// nearestPNGDelay finds the closest fraction whose two fields fit in 16 bits.
+// Continued fractions also recover rates such as 1/60 from a seconds-only decoder.
+func nearestPNGDelay(seconds float64) codec.FrameDelay {
+	previous := codec.FrameDelay{Denominator: 1}
+	current := codec.FrameDelay{Numerator: 1}
+
+	value := seconds
+
+	for {
+		limit := uint32(math.MaxUint16)
+		if current.Numerator != 0 {
+			limit = min(limit, (math.MaxUint16-previous.Numerator)/current.Numerator)
+		}
+
+		if current.Denominator != 0 {
+			limit = min(limit, (math.MaxUint16-previous.Denominator)/current.Denominator)
+		}
+
+		whole := math.Floor(value)
+		step := uint32(min(whole, float64(limit)))
+
+		next := codec.FrameDelay{
+			Numerator:   previous.Numerator + step*current.Numerator,
+			Denominator: previous.Denominator + step*current.Denominator,
+		}
+
+		if whole > float64(limit) {
+			// At the field limit the closest candidate is either the last
+			// convergent or the furthest intermediate fraction that fits.
+			if math.Abs(seconds-delaySeconds(current)) < math.Abs(seconds-delaySeconds(next)) {
+				return current
+			}
+
+			return next
+		}
+
+		if value == whole || delaySeconds(next) == seconds {
+			return next
+		}
+
+		previous, current = current, next
+		value = 1 / (value - whole)
 	}
-
-	numerator /= first
-	denominator /= first
-
-	if numerator > math.MaxUint16 || denominator > math.MaxUint16 {
-		return codec.FrameDelay{}, false
-	}
-
-	return codec.FrameDelay{Numerator: uint32(numerator), Denominator: uint32(denominator)}, true
 }
